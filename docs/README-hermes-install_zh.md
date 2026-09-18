@@ -5,7 +5,9 @@
 > [!IMPORTANT]
 > **当前只支持 Hermes v2026.8.19（CLI 显示 v0.20.5 / 2026.8.19）。暂不支持 v2026.9.14，也不承诺兼容其他版本。**
 > **不需要配置 `plugins.hook_callback_timeout: 0`。** 新版兼容方案已回滚；不要通过关闭宿主超时来尝试兼容新版。
-> 本文固定安装已验证的插件提交 `2d310ee7333469ac6b36fd9ad40d2f8adbf86834`，保留 Hermes 适配及 KV cache 注入位置修复。
+> 本文固定安装已验证的插件提交 `2a03d53f7e6093edd636c81fc88453b6cc1c664b`，包含 Hermes 适配、KV cache 注入位置修复及本轮误报优化。
+
+本轮新增弱关键词分级、重复告警合并、纯字符串打印识别及删除动词边界修复，见[修复范围与验证报告](false-positive-improvements-2026-09-18.md)。
 
 ## 1. 检查前提
 
@@ -47,7 +49,7 @@ printf '本次安装的 Hermes profile：%s\n' "$HERMES_HOME"
   git clone --branch feat/hermes-v2026.8.19-cache-safe \
     https://github.com/RowanZhong/agent-aegis.git "$AEGIS_SOURCE_DIR"
   git -C "$AEGIS_SOURCE_DIR" checkout --detach \
-    2d310ee7333469ac6b36fd9ad40d2f8adbf86834
+    2a03d53f7e6093edd636c81fc88453b6cc1c664b
   git -C "$AEGIS_SOURCE_DIR" rev-parse HEAD
 )
 ```
@@ -72,7 +74,7 @@ printf '本次安装的 Hermes profile：%s\n' "$HERMES_HOME"
   fi
   mkdir -p "$AEGIS_PLUGIN_DIR"
   git -C "$AEGIS_SOURCE_DIR" archive \
-    2d310ee7333469ac6b36fd9ad40d2f8adbf86834 | tar -x -C "$AEGIS_PLUGIN_DIR"
+    2a03d53f7e6093edd636c81fc88453b6cc1c664b | tar -x -C "$AEGIS_PLUGIN_DIR"
   test -f "$AEGIS_PLUGIN_DIR/plugin.yaml"
   test -f "$AEGIS_PLUGIN_DIR/src/hermes-bridge.js"
   hermes plugins enable agent-aegis --no-allow-tool-override
