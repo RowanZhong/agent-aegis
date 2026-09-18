@@ -1,8 +1,10 @@
 # AgentAegis
 
-现支持 OpenClaw 和 **Hermes Agent v2026.8.19**。安装、配置、生命周期映射、
+现支持 OpenClaw 和 **Hermes Agent v2026.8.19 / v2026.9.14**。安装、配置、生命周期映射、
 测试及限制请参见 [Hermes 适配说明](docs/hermes.md)。OpenClaw 的动态安全指令
 已移至系统提示词尾部，保留固定提示词前缀以便复用 KV cache。
+Hermes v2026.9.14 需设置 `plugins.hook_callback_timeout: 0`；该项对整个 profile
+生效，插件自身仍限制 Node 通信时间，具体影响见适配说明。
 <p align="center"> 
   <a href="README.md">English</a>
   |

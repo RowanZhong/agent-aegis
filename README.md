@@ -2,10 +2,12 @@
 
 # AgentAegis
 
-Supports OpenClaw and **Hermes Agent v2026.8.19**. See the
+Supports OpenClaw and **Hermes Agent v2026.8.19 / v2026.9.14**. See the
 [Hermes adapter guide](docs/hermes.md) for installation, configuration, lifecycle
 coverage, cache behavior and tests. OpenClaw dynamic safety context is appended
 after the host system prompt to preserve its stable KV-cache prefix.
+Hermes v2026.9.14 requires `plugins.hook_callback_timeout: 0`; see the guide
+for the profile-wide timeout implications and the plugin's own bounded I/O.
 
 <p align="center"> 
   <a href="README.md">English</a>

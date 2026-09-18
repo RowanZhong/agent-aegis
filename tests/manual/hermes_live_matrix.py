@@ -199,7 +199,7 @@ def main():
         step('write_file',path=str(marker),content='AEGIS_OK');checks['marker_exists']=False;checks['unavailable']=True
     else: raise ValueError('Unknown case '+name)
     cfg={'model':{'provider':'anthropic','default':args.model},'terminal':{'backend':'local','cwd':str(work),'timeout':10},
-         'plugins':{'enabled':['agent-aegis'],'entries':{'agent-aegis':{'settings':settings}}},
+         'plugins':{'hook_callback_timeout':0,'enabled':['agent-aegis'],'entries':{'agent-aegis':{'settings':settings}}},
          'tools':{'tool_search':{'enabled':'off'}},'memory':{'memory_enabled':True,'user_profile_enabled':True},'logging':{'level':'WARNING'}}
     (home/'config.yaml').write_text(yaml.safe_dump(cfg))
     from run_agent import AIAgent

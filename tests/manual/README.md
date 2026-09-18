@@ -1,9 +1,11 @@
 # Opt-in live checks
 
 These scripts are deliberately outside CI. Use a full installed Hermes Python
-environment and an **unmodified v2026.8.19 checkout**. `--hermes-root` selects the
+environment and an **unmodified v2026.8.19 or v2026.9.14 checkout**. `--hermes-root` selects the
 source to import; the Python interpreter supplies its dependencies. Build this
-plugin with `npm test` first. Every output directory/case must be new.
+plugin with `npm test` first. Every output directory/case must be new. Fixtures
+set `plugins.hook_callback_timeout: 0`, required for reliable delivery of
+overlapping security hooks on v2026.9.14; see [host configuration](../../docs/hermes.md).
 
 ```sh
 # Set these to your reviewed checkout and full Hermes environment.

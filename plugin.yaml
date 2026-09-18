@@ -1,6 +1,6 @@
 name: agent-aegis
 version: "2026.3.14"
-description: "AgentAegis runtime protection for Hermes Agent v2026.8.19"
+description: "AgentAegis runtime protection for Hermes Agent v2026.8.19 / v2026.9.14"
 author: Ant Group
 kind: standalone
 license: Apache-2.0
