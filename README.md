@@ -13,6 +13,8 @@ after the host system prompt to preserve its stable KV-cache prefix.
 
 **Installing on Hermes? See the [Chinese installation README](docs/README-hermes-install_zh.md)** for pinned downloads, configuration, verification, updates and removal. The Quick Start below is for OpenClaw.
 
+False-positive fixes now distinguish weak keyword notices, fold repeated tool-result alerts without dropping audits, allow a strict literal-only print subset, and fix `rm` matching inside `terminal`. See the [scope and validation report](docs/false-positive-improvements-2026-09-18.md).
+
 <p align="center"> 
   <a href="README.md">English</a>
   |

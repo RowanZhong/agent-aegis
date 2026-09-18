@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useEvents } from "../api/hooks";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { ScrollText, ChevronDown, ChevronRight } from "lucide-react";
@@ -12,9 +12,11 @@ export function EventsPage() {
   const { t } = useTranslation();
   const [defense, setDefense] = useState("");
   const [result, setResult] = useState("");
+  const [collapse, setCollapse] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const params: Record<string, string> = { limit: "50" };
+  if (collapse) params.collapse = "true";
   if (defense) params.defense = defense;
   if (result) params.result = result;
 
@@ -35,11 +37,17 @@ export function EventsPage() {
         <ScrollText size={24} className="text-blue-600" />
         <h1 className="text-xl font-bold">{t("events.title")}</h1>
         <span className="text-xs text-gray-400 ml-auto">
-          {t("events.totalEvents", { count: data?.total ?? 0 })}
+          {collapse
+            ? t("events.groupedTotal", { count: data?.total ?? 0, raw: data?.rawTotal ?? 0 })
+            : t("events.totalEvents", { count: data?.total ?? 0 })}
         </span>
       </div>
 
       <div className="flex items-center gap-3 mb-4">
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked={collapse} onChange={(e) => setCollapse(e.target.checked)} />
+          {t("events.collapseDuplicates")}
+        </label>
         <select
           value={defense}
           onChange={(e) => setDefense(e.target.value)}
@@ -92,7 +100,7 @@ export function EventsPage() {
                 const expandable = hasDetail(ev);
                 const isOpen = expanded.has(ev.id);
                 return (
-                  <>
+                  <Fragment key={ev.id}>
                     <tr
                       key={ev.id}
                       className={`hover:bg-gray-50 ${expandable ? "cursor-pointer" : ""}`}
@@ -108,11 +116,18 @@ export function EventsPage() {
                       </td>
                       <td className="px-4 py-2 font-medium">{ev.defense}</td>
                       <td className="px-4 py-2">
-                        <StatusBadge value={ev.result} />
+                        {ev.details?.level === "info" && ev.result === "observed"
+                          ? <span className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded">{t("events.informational")}</span>
+                          : <StatusBadge value={ev.result} />}
                       </td>
                       <td className="px-4 py-2 text-gray-600">{ev.toolName ?? "-"}</td>
                       <td className="px-4 py-2 text-gray-500 truncate max-w-xs">
                         {ev.reason ?? "-"}
+                        {(ev.occurrences ?? 1) > 1 && (
+                          <span className="ml-2 font-medium text-blue-600" title={t("events.firstSeen", {
+                            time: new Date(ev.firstTimestamp!).toLocaleString(),
+                          })}>{t("events.occurrences", { count: ev.occurrences })}</span>
+                        )}
                       </td>
                     </tr>
                     {expandable && isOpen && (
@@ -184,7 +199,7 @@ export function EventsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

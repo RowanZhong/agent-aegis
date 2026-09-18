@@ -57,6 +57,11 @@
     "startupSkillScan": "启动时扫描技能"
   },
   "events": {
+    "groupedTotal": "当前已加载：{{count}} 组 / {{raw}} 条记录",
+    "collapseDuplicates": "合并重复告警",
+    "informational": "信息",
+    "firstSeen": "首次出现：{{time}}",
+    "occurrences": "×{{count}}",
     "title": "安全事件",
     "totalEvents": "共 {{count}} 个事件",
     "loading": "加载事件中...",

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { BLOCK_REASON_EXFILTRATION_CHAIN, BLOCK_REASON_HIGH_RISK_OPERATION, BLOCK_REASON_MEMORY_WRITE, BLOCK_REASON_OPENCLAW_COMMAND, BLOCK_REASON_PROTECTED_PATH, BLOCK_REASON_WORKSPACE_DELETE, INLINE_EXEC_TEXT_MAX_CHARS, MEMORY_WRITE_MAX_CHARS, MEMORY_WRITE_MAX_LINES, TOOL_RESULT_CHAR_BUDGET, TOOL_RESULT_MAX_ARRAY_ITEMS, TOOL_RESULT_MAX_DEPTH, } from "./config.js";
 import { detectCommandObfuscation } from "./command-obfuscation.js";
+import { isLiteralPrintCommand } from "./literal-print.js";
 import { buildObservedSecretVariants, inspectEncodedCandidates, sanitizeEncodedSecretVariants, } from "./encoding-guard.js";
 import { AEGIS_REFUSAL_OUTPUT_RULE, AEGIS_REFUSAL_PREFIX, PROMPT_GUARD_STRATEGIES, TOOL_RESULT_RISK_RULES, USER_RISK_RULES, } from "./security-strategies.js";
 const TOOL_RESULT_SPECIAL_TOKENS = [
@@ -1753,6 +1754,10 @@ export function resolveInlineExecutionViolation(command, protectedRoots, baseDir
         if (detectHighRiskCommand(inlineText)) {
             return BLOCK_REASON_HIGH_RISK_OPERATION;
         }
+        // Exempt only literal-path inspection, never the other tool-call guards.
+        // Inspect the full original command so truncation cannot hide a suffix.
+        if (isLiteralPrintCommand(command))
+            return undefined;
         // Shell tokenization treats e.g. fs.writeFileSync("/protected", "data")
         // as one token. Also inspect literal strings embedded in inline code;
         // never evaluate the code or interpolate expressions to resolve a path.
@@ -2206,7 +2211,7 @@ export function detectDispatchGuardViolation(text, protectedPaths) {
         const lowerText = text.toLowerCase();
         for (const protectedPath of protectedPaths) {
             if (lowerText.includes(protectedPath.toLowerCase())) {
-                const hasDestructiveVerb = /(?:rm|delete|remove|unlink|rmdir|移除|删除|卸载|清除|覆盖|移走|重命名)/i.test(text);
+                const hasDestructiveVerb = /\b(?:rm|rmdir|unlink(?:s|ed|ing)?|delet(?:e[sd]?|ing)|remov(?:e[sd]?|ing))\b|(?:移除|删除|卸载|清除|覆盖|移走|重命名)/i.test(text);
                 if (hasDestructiveVerb) {
                     flags.push("protected-path-destructive");
                     break;

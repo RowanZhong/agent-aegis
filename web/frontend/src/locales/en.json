@@ -57,6 +57,11 @@
     "startupSkillScan": "Scan Skills at Startup"
   },
   "events": {
+    "groupedTotal": "Loaded: {{count}} groups / {{raw}} records",
+    "collapseDuplicates": "Collapse duplicate alerts",
+    "informational": "Info",
+    "firstSeen": "First seen: {{time}}",
+    "occurrences": "×{{count}}",
     "title": "Security Events",
     "totalEvents": "{{count}} total events",
     "loading": "Loading events...",

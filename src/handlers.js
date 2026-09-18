@@ -7,6 +7,7 @@ import { buildDynamicPromptContext, buildLoopGuardStableArgsKey, buildStaticSyst
 import { TOOL_CALL_DEFENSE_STRATEGIES, } from "./security-strategies.js";
 import { SkillScanService } from "./scan-service.js";
 import { ClawAegisState } from "./state.js";
+import { ToolResultAlertTracker } from "./alert-tracker.js";
 const SELF_INTEGRITY_FILES = [
     "index.ts",
     "runtime-api.ts",
@@ -21,6 +22,8 @@ const SELF_INTEGRITY_FILES = [
     "src/scan-worker.js",
     "src/handlers.ts",
     "src/handlers.js",
+    "src/literal-print.js",
+    "src/alert-tracker.js",
     "plugin.yaml",
     "__init__.py",
     "hermes_adapter.py",
@@ -285,6 +288,11 @@ function logObservedToolCall(params) {
 export function createClawAegisRuntime(api, options) {
     const logger = createAegisLogger(api);
     const now = options?.now ?? Date.now;
+    const resultAlerts = new ToolResultAlertTracker({ now, onSummary: (summary) => {
+            logger.info("claw-aegis: 已合并重复的工具结果告警（逐次检查和审计均保留）", {
+                event: "tool_result_alert_summary", ...summary,
+            });
+        } });
     const stateDir = options?.stateDir ?? resolveClawAegisStateDir(api);
     const emitDefenseEvent = createDefenseEventWriter(stateDir);
     const config = resolveClawAegisPluginConfig(api);
@@ -1253,6 +1261,7 @@ export function createClawAegisRuntime(api, options) {
                     state.clearRunSecurityState(runId);
                 }
                 if (sessionKey) {
+                    resultAlerts.finishTurn(sessionKey);
                     state.clearSessionRuntimeState(sessionKey);
                 }
                 if (runId || sessionKey) {
@@ -1269,6 +1278,7 @@ export function createClawAegisRuntime(api, options) {
                 if (!sessionKey) {
                     return;
                 }
+                resultAlerts.endSession(sessionKey);
                 state.clearSessionRuntimeState(sessionKey);
                 logger.info("claw-aegis: 已清理 session 级临时安全状态", {
                     event: "session_runtime_state_cleared",
@@ -1386,9 +1396,7 @@ export function createClawAegisRuntime(api, options) {
                 try {
                     const thirdPartyWebContent = isThirdPartyWebToolResultMessage(message);
                     const toolName = typeof message.toolName === "string" ? message.toolName : undefined;
-                    const rawExtracted = thirdPartyWebContent
-                        ? collectToolResultScanText(message)
-                        : undefined;
+                    const rawExtracted = collectToolResultScanText(message);
                     if (thirdPartyWebContent) {
                         logger.info("claw-aegis: 开始处理第三方网页内容", {
                             event: "third_party_web_content_processing_started",
@@ -1444,15 +1452,34 @@ export function createClawAegisRuntime(api, options) {
                         outcome.oversize ||
                         outcome.riskFlags.length > 0 ||
                         sanitized.removedTokenCount > 0) {
+                        // A lone vocabulary hit is informational, not an established attack.
+                        // Detection, prompt state, redaction and all enforcement stay unchanged.
+                        const level = !outcome.suspicious && !outcome.oversize &&
+                            sanitized.removedTokenCount === 0 && observedSecrets.length === 0 &&
+                            outcome.riskFlags.length === 1 && outcome.riskFlags[0] === "secret-request"
+                            ? "info" : "warn";
+                        // Incomplete scans cannot establish identical content; do not fold them.
+                        const occurrence = rawExtracted.oversize || outcome.oversize ? undefined
+                            : resultAlerts.record(sessionKey, createHash("sha256").update(JSON.stringify([
+                                rawExtracted.text, [...outcome.riskFlags].sort(), outcome.suspicious,
+                                sanitized.removedTokenCount, sanitized.externalContent,
+                            ])).digest("hex"), level, toolName);
                         emitDefenseEvent({
                             timestamp: now(),
                             defense: "tool_result_scan",
                             result: "observed",
                             toolName: typeof message.toolName === "string" ? message.toolName : undefined,
-                            reason: `风险标记: ${outcome.riskFlags.join(", ") || "suspicious/oversize"}`,
-                            details: { flags: outcome.riskFlags, suspicious: outcome.suspicious, oversize: outcome.oversize },
+                            reason: `${level === "info" ? "弱关键词命中" : "风险标记"}: ${outcome.riskFlags.join(", ") || "suspicious/oversize"}`,
+                            details: { flags: outcome.riskFlags, suspicious: outcome.suspicious,
+                                oversize: outcome.oversize, level, ...occurrence },
                         });
-                        logger.warn("claw-aegis: 已完成工具结果审查", logMeta);
+                        const alertMeta = { ...logMeta, level, ...occurrence };
+                        if (!occurrence || occurrence.occurrenceCount === 1) {
+                            logger[level]("claw-aegis: 已完成工具结果审查", alertMeta);
+                        }
+                        else {
+                            logger.debug?.("claw-aegis: 重复工具结果告警已合并", alertMeta);
+                        }
                     }
                     else {
                         logger.debug?.("claw-aegis: 已完成工具结果审查", logMeta);

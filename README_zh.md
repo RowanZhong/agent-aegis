@@ -10,6 +10,8 @@
 
 **安装到 Hermes：[中文安装 README](docs/README-hermes-install_zh.md)**（固定版本下载、配置、验证、更新和卸载）。下方快速开始面向 OpenClaw。
 
+本轮误报优化：弱关键词降为信息提示、重复工具结果告警合并但保留逐次审计、严格识别纯字符串打印，并修复 `terminal` 中的 `rm` 被当作删除命令的问题。详见[修复范围与验证报告](docs/false-positive-improvements-2026-09-18.md)。
+
 <p align="center"> 
   <a href="README.md">English</a>
   |

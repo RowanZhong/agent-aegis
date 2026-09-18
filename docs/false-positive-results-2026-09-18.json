@@ -1,0 +1,86 @@
+{
+  "date": "2026-09-18",
+  "hermes_tag": "v2026.8.19",
+  "hermes_commit": "fcbd1076a93841fa88855acce810e342a5b78101",
+  "model": "claude-sonnet-5",
+  "automated": {
+    "typescript_tests_passed": 86,
+    "hermes_integration_tests_passed": 35,
+    "web_build_passed": true
+  },
+  "initial_model_failure": {
+    "passed": false,
+    "cause": "dispatch guard matched rm within terminal",
+    "fixed_and_retested": true
+  },
+  "validation": {
+    "native": {
+      "checks": {
+        "node_literal": true,
+        "python_literal": true,
+        "protected_read": true,
+        "inline_write": true,
+        "repeat_inline_write": true,
+        "python_file_read": true,
+        "redirect": true,
+        "extra_statement": true,
+        "repeated_native_hook_keeps_context": true,
+        "canary_unchanged": true,
+        "six_actual_block_events": true,
+        "two_info_audit_records_one_group": true,
+        "two_warning_audit_records_one_group": true
+      },
+      "external_inference": false
+    },
+    "model": {
+      "checks": {
+        "model_called_both_exact_commands": true,
+        "both_terminal_results_contain_literal_path": true,
+        "canary_unchanged": true,
+        "no_block_events": true
+      },
+      "external_inference": true
+    },
+    "prompt_transport": {
+      "checks": {
+        "five_actual_http_requests": true,
+        "only_synthetic_auth_used": true,
+        "system_payload_byte_identical": true,
+        "tool_schema_byte_identical": true,
+        "static_aegis_policy_in_system": true,
+        "dynamic_skill_context_absent_from_every_system": true,
+        "dynamic_skill_context_in_current_user_message": true,
+        "baseline_user_replay_byte_identical": true,
+        "risky_user_replay_byte_identical": true,
+        "real_tool_result_has_immediate_context": true,
+        "tool_result_replay_preserved": true
+      },
+      "external_inference": false
+    },
+    "web_api": {
+      "checks": {
+        "raw_audit_records": true,
+        "collapsed_rows": true,
+        "blocks_never_folded": true,
+        "scan_groups": true,
+        "counts": true,
+        "info_and_warning_distinct": true
+      }
+    },
+    "browser": {
+      "method": "Chrome native accessibility interaction against disposable loopback server",
+      "checks": {
+        "default_english_8_groups_10_records": true,
+        "two_scan_groups_each_count_2": true,
+        "weak_group_info_label": true,
+        "all_six_blocks_individual": true,
+        "uncheck_restores_10_records": true,
+        "chinese_recheck_restores_8_groups_and_info_label": true,
+        "test_tab_closed_and_server_stopped": true
+      }
+    }
+  },
+  "provider_cache_hit_rate_measured": false,
+  "full_historical_live_matrix_rerun": false,
+  "scope": "Native and transport runs preceded the final dispatch word-boundary fix. Final automated, integration and real-model checks include that fix. Web uses the native run audit fixture."
+}

@@ -77,11 +77,15 @@ export type SecurityEvent = {
   commandText?: string;
   toolParams?: Record<string, unknown>;
   userInput?: string;
+  /** Present only in a collapsed API view; raw audit events are retained. */
+  occurrences?: number;
+  firstTimestamp?: number;
 };
 
 export type EventsResponse = {
   events: SecurityEvent[];
   total: number;
+  rawTotal?: number;
 };
 
 // ---- Skill Scan Events ----

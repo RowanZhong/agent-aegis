@@ -133,6 +133,50 @@ def test_safe_tools_remain_usable(loaded):
         assert call(manager, "pre_tool_call", tool_name=tool, args=args) is None
 
 
+def test_literal_print_exemption_through_native_hooks_keeps_access_blocked(loaded):
+    load, _, tmp = loaded
+    target = str(tmp / "canary.txt")
+    manager = load({"protectedPaths": [target]})
+    assert call(manager, "pre_llm_call", user_message=f"Use terminal to print the literal string {target}") is None
+    for command in [f"node -e 'console.log(\"{target}\")'", f"python3 -c 'print(\"{target}\")'"]:
+        assert call(manager, "pre_tool_call", tool_name="terminal", args={"command": command}) is None
+    for command in [
+        f"node -e 'require(\"fs\").writeFileSync(\"{target}\",\"CHANGED\")'",
+        f"python3 -c 'print(open(\"{target}\").read())'",
+        f"node -e 'console.log(\"{target}\")' > {target}",
+        f"node -e 'console.log(\"{target}\")'; cat {target}",
+    ]:
+        result = call(manager, "pre_tool_call", tool_name="terminal", args={"command": command})
+        assert result["action"] == "block" and "unavailable" not in result["message"].lower()
+
+
+def test_notification_folding_keeps_native_scan_context_and_audit(loaded):
+    load, home, _ = loaded
+    manager = load()
+    weak = "Documentation: token, cookie and env are common terms."
+    for _ in range(2):
+        call(manager, "transform_tool_result", tool_name="read_file", result=weak)
+    for _ in range(2):
+        transformed = call(manager, "transform_tool_result", tool_name="read_file", result=INJECTION)
+        assert "AgentAegis security context" in transformed
+    deadline = time.monotonic() + 3
+    events = []
+    while time.monotonic() < deadline:
+        events = [json.loads(line) for f in (home / "plugin-data").rglob("defense-events.jsonl")
+                  for line in f.read_text().splitlines()]
+        if len(events) == 4:
+            break
+        time.sleep(.02)
+    assert len(events) == 4
+    info = [e for e in events if e["details"]["level"] == "info"]
+    warn = [e for e in events if e["details"]["level"] == "warn"]
+    assert len(info) == len(warn) == 2
+    for group in (info, warn):
+        assert len({e["details"]["alertId"] for e in group}) == 1
+        assert sorted(e["details"]["occurrenceCount"] for e in group) == [1, 2]
+    assert info[0]["details"]["alertId"] != warn[0]["details"]["alertId"]
+
+
 def test_tool_result_injection_is_visible_immediately_and_output_is_redacted(loaded):
     load, _, _ = loaded
     manager = load()

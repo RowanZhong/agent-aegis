@@ -77,6 +77,30 @@ formatting between requests. It checks the actual system/tools fields, dynamic
 context placement and replay, not provider cache hit statistics. Request headers
 are not persisted. There is no external inference in this transport probe.
 
+## False-positive regression checks
+
+```sh
+# Real AIAgent executor: 2 prints, 6 blocked fixture operations, audit probes.
+"$HERMES_TEST_PYTHON" tests/manual/hermes_false_positive_live.py \
+  --hermes-root "$HERMES_TEST_ROOT" --output /tmp/aegis-new-fp-native --mode native
+
+# Real Claude Sonnet 5 inference and two exact terminal commands.
+"$HERMES_TEST_PYTHON" tests/manual/hermes_false_positive_live.py \
+  --hermes-root "$HERMES_TEST_ROOT" --output /tmp/aegis-new-fp-model --mode model
+```
+
+The native result-notification probes explicitly invoke the registered hook;
+they are not model-generated injection attempts. Check `report.json` for every
+assertion. `model` fails if the model refuses, changes or omits either command.
+The model must stop on a block; the script does not ask it to work around guards.
+See the [results and limitations](../../docs/false-positive-improvements-2026-09-18.md).
+
+For the duplicate-alert UI check, copy the native run's `defense-events.jsonl`
+to the disposable Web state directory described below. Expect 10 raw records:
+6 individual blocks and 4 scan observations. With `collapse=true`, expect 8 rows,
+including two scan groups of 2. Verify the checkbox restores all 10 rows, the
+weak group shows Info/信息, and language switching retains the expected counts.
+
 All payload effects target new disposable files. The pipe-to-shell fixture
 only prints/writes a marker. Provenance and encoded fixtures contain inert text
 that is never executed. Network sinks bind only to loopback. Never substitute

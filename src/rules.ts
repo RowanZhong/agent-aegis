@@ -19,6 +19,7 @@ import {
   TOOL_RESULT_MAX_DEPTH,
 } from "./config.js";
 import { detectCommandObfuscation } from "./command-obfuscation.js";
+import { isLiteralPrintCommand } from "./literal-print.js";
 import {
   buildObservedSecretVariants,
   inspectEncodedCandidates,
@@ -2390,6 +2391,9 @@ export function resolveInlineExecutionViolation(
     if (detectHighRiskCommand(inlineText)) {
       return BLOCK_REASON_HIGH_RISK_OPERATION;
     }
+    // Exempt only literal-path inspection, never the other tool-call guards.
+    // Inspect the full original command so truncation cannot hide a suffix.
+    if (isLiteralPrintCommand(command)) return undefined;
     // Shell tokenization treats e.g. fs.writeFileSync("/protected", "data")
     // as one token. Also inspect literal strings embedded in inline code;
     // never evaluate the code or interpolate expressions to resolve a path.
@@ -2933,7 +2937,7 @@ export function detectDispatchGuardViolation(
     for (const protectedPath of protectedPaths) {
       if (lowerText.includes(protectedPath.toLowerCase())) {
         const hasDestructiveVerb =
-          /(?:rm|delete|remove|unlink|rmdir|移除|删除|卸载|清除|覆盖|移走|重命名)/i.test(text);
+          /\b(?:rm|rmdir|unlink(?:s|ed|ing)?|delet(?:e[sd]?|ing)|remov(?:e[sd]?|ing))\b|(?:移除|删除|卸载|清除|覆盖|移走|重命名)/i.test(text);
         if (hasDestructiveVerb) {
           flags.push("protected-path-destructive");
           break;

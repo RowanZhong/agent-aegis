@@ -14,6 +14,10 @@ source modifications, network service, extra model tool or LLM API key are neede
 For step-by-step instructions with a pinned fork download, see the
 [中文安装 README](README-hermes-install_zh.md).
 
+The [false-positive improvement report](false-positive-improvements-2026-09-18.md)
+documents the narrow print exemption, notification grouping, dispatch-word fix,
+live validation and remaining semantic false positives.
+
 ## Install from a reviewed checkout
 
 Place a reviewed copy of this repository, including the committed JavaScript
