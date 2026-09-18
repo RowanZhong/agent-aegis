@@ -34,7 +34,7 @@ safe = '---\nname: live-canary\ndescription: disposable fixture\n---\nSummarize 
 skill.write_text(safe)
 settings = {'skillScanEnabled': True, 'startupSkillScan': True, 'defaultBlockingMode': 'enforce',
             'dispatchGuardEnabled': False, 'bridgeTimeoutSeconds': 30}
-(home / 'config.yaml').write_text(yaml.safe_dump({'plugins': {'hook_callback_timeout':0,'enabled': ['agent-aegis'],
+(home / 'config.yaml').write_text(yaml.safe_dump({'plugins': {'enabled': ['agent-aegis'],
     'entries': {'agent-aegis': {'settings': settings}}}}))
 from run_agent import AIAgent
 from hermes_cli.plugins import get_plugin_manager

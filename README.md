@@ -2,20 +2,14 @@
 
 # AgentAegis
 
-Supports OpenClaw and **Hermes Agent v2026.8.19 / v2026.9.14**. See the
+Supports OpenClaw and **Hermes Agent v2026.8.19**. See the
 [Hermes adapter guide](docs/hermes.md) for installation, configuration, lifecycle
 coverage, cache behavior and tests. OpenClaw dynamic safety context is appended
 after the host system prompt to preserve its stable KV-cache prefix.
 
 > [!IMPORTANT]
-> **Hermes v2026.9.14 requires configuration before use.** Set
-> `plugins.hook_callback_timeout: 0` in the active profile's `config.yaml` and restart.
-> `0` selects synchronous hook dispatch. The default dispatcher can skip overlapping
-> security callbacks even before a timeout, omitting input checks or result redaction.
-> **This disables host-managed Python hook timeouts for the entire profile.**
-> AgentAegis retains its own Node I/O timeouts; other plugins must manage their own.
-> Without this setting, AgentAegis blocks tools and reports the required correction.
-> v2026.8.19 does not require it. See [configuration and limits](docs/hermes.md#configuration).
+> Hermes support currently targets **v2026.8.19 only**. **v2026.9.14 is not supported.**
+> This adapter does not require disabling Hermes' host-managed hook timeouts.
 
 <p align="center"> 
   <a href="README.md">English</a>

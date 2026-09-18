@@ -7,15 +7,6 @@ permissions:
 jobs:
   runtime:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        hermes:
-          - version: v2026.8.19
-            ref: fcbd1076a93841fa88855acce810e342a5b78101
-          - version: v2026.9.14
-            ref: 345cd2b057a452236de401d3534b8502a7465e8d
-    name: Hermes ${{ matrix.hermes.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: NousResearch/hermes-agent
-          ref: ${{ matrix.hermes.ref }}
+          ref: fcbd1076a93841fa88855acce810e342a5b78101
           path: .test-hosts/hermes
       - run: python -m pip install -r tests/requirements-hermes.txt
       - name: Exercise the native Hermes plugin and live Node worker

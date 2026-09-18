@@ -1,16 +1,15 @@
 # Hermes Agent adapter
 
-AgentAegis supports these tested Hermes Agent releases as a native, opt-in Python plugin:
-
-| Release | Pinned commit |
-| --- | --- |
-| v2026.8.19 | `fcbd1076a93841fa88855acce810e342a5b78101` |
-| v2026.9.14 (v0.21.3; latest stable checked on 2026-09-18) | `345cd2b057a452236de401d3534b8502a7465e8d` |
-
+AgentAegis supports **Hermes Agent v2026.8.19**, tag commit
+`fcbd1076a93841fa88855acce810e342a5b78101`, as a native, opt-in Python plugin.
 It requires Python 3.11–3.13 (as required by Hermes) and Node.js 22 or newer.
 The existing TypeScript engine performs detection; Python only connects the
 host lifecycle and tool schemas to a persistent local Node process. No Hermes
 source modifications, network service, extra model tool or LLM API key are needed.
+
+> [!IMPORTANT]
+> **Hermes v2026.9.14 is currently unsupported.** Use the pinned v2026.8.19 release
+> for this adapter. No global hook-timeout override is required.
 
 ## Install from a reviewed checkout
 
@@ -26,7 +25,7 @@ hermes plugins enable agent-aegis
 hermes plugins list
 ```
 
-Apply the configuration below before restarting the CLI/gateway. Start a new
+Restart the CLI/gateway after enabling or changing settings. Start a new
 conversation to pick up a changed static policy. The checked-in runtime does
 not need `npm install`; developers run `npm ci --ignore-scripts && npm test`
 after changing TypeScript.
@@ -45,8 +44,6 @@ Merge this into the active profile's `config.yaml`; preserve other plugins:
 
 ```yaml
 plugins:
-  # Required on v2026.9.14; accepted and unused by v2026.8.19.
-  hook_callback_timeout: 0
   enabled:
     - agent-aegis
   entries:
@@ -69,23 +66,6 @@ plugins:
         # Optional; default 10 seconds for each bridge I/O phase.
         bridgeTimeoutSeconds: 10
 ```
-
-**v2026.9.14 requires `plugins.hook_callback_timeout: 0`.** Its default bounded
-dispatcher skips a callback while that same callback is already running, even
-for a different session. This can omit input inspection or result redaction.
-AgentAegis therefore blocks tools with an actionable configuration error until
-the host uses synchronous dispatch. The adapter serializes inspections and
-retains its own bounded Node I/O, frame limits and failed-worker handling.
-This setting affects **all Python plugin hooks in the profile**: other plugins
-must manage their own timeouts too. The adapter does not rewrite host settings
-or patch Hermes internals. Restart after changing it; do not enable
-`plugins.allow_deprecated_imports` as a workaround.
-
-Here, `0` selects synchronous callbacks on the calling thread and disables the
-host-managed timeout path. AgentAegis's default `bridgeTimeoutSeconds: 10` still
-bounds each Node write/read phase; it is not a total wall-clock bound across
-queued calls or other plugins. This requirement addresses hook delivery; the
-prompt-cache fix independently controls where dynamic context is attached.
 
 Omit `nodeExecutable` if `node` is on the Hermes process's PATH. Existing
 AgentAegis defense switches and `enforce`/`observe`/`off` modes keep their meaning.
@@ -167,24 +147,19 @@ changes tool schemas, or inserts synthetic turns.
 ```bash
 npm ci --ignore-scripts
 npm test
-git clone --depth 1 --branch v2026.9.14 \
-  https://github.com/NousResearch/hermes-agent.git /tmp/hermes-v2026.9.14
+git clone --depth 1 --branch v2026.8.19 \
+  https://github.com/NousResearch/hermes-agent.git /tmp/hermes-v2026.8.19
 python3.11 -m venv /tmp/aegis-tests
 /tmp/aegis-tests/bin/python -m pip install -r tests/requirements-hermes.txt
-PYTHONPATH=/tmp/hermes-v2026.9.14 \
+PYTHONPATH=/tmp/hermes-v2026.8.19 \
   /tmp/aegis-tests/bin/python -m pytest -q tests/test_hermes_integration.py
 ```
 
 Tests use temporary profiles, the real Hermes plugin loader/dispatcher, real
 system-prompt construction and a live Node worker. Dangerous commands are
 inspection inputs only; the dispatch test substitutes the final tool executor.
-No live LLM call or production profile is required. CI tests both exact release
-commits and checks the committed JavaScript against a fresh build.
-
-The [v2026.9.14 compatibility report](hermes-compatibility-2026-09-18.md) records
-the removed skill-helper migration, required synchronous hook configuration,
-dual-version regression tests, native tool/CLI/lifecycle checks and a fresh
-five-request prompt capture on the latest stable release.
+No live LLM call or production profile is required. CI pins Hermes to the exact
+release commit and checks the committed JavaScript against a fresh build.
 
 Separate from these credential-free tests, the [2026-09-18 live validation](live-validation-2026-09-18.md)
 ran real Anthropic inference and Hermes file/terminal tools, including a
@@ -203,17 +178,12 @@ provider cache hit rates.
 
 ## 中文说明
 
-该适配已验证 Hermes v2026.8.19 和 v2026.9.14，复用 AgentAegis 的 TypeScript
+该适配以原生插件运行于 Hermes v2026.8.19，复用 AgentAegis 的 TypeScript
 防护引擎。请先审阅源码，再将完整目录放入当前 profile 的 `plugins/agent-aegis`
-并执行 `hermes plugins enable agent-aegis`。v2026.8.19 的通用安装扫描器会
+并执行 `hermes plugins enable agent-aegis`。该版本 Hermes 的通用安装扫描器会
 将本仓库里的攻击检测规则和测试样例标记为危险，因此不能直接使用 Git 安装命令。
 
-v2026.9.14 必须在 `plugins` 下设置 `hook_callback_timeout: 0` 并重启，否则
-新版宿主会跳过并发执行的同名安全钩子；插件会拒绝工具调用并提示修正配置。
-此项会关闭同一 profile 中所有 Python 插件钩子的宿主超时机制，其他插件需自行
-管理超时。AgentAegis 自身仍限制 Node 通信时间，不修改 Hermes 源码或用户配置。
-
-防护配置写在 `plugins.entries.agent-aegis.settings`，支持原有开关和三种防护模式。
+配置写在 `plugins.entries.agent-aegis.settings`，支持原有开关和三种防护模式。
 需 Node.js 22+；安装包已带编译产物。进程故障时拒绝工具执行，不会悄悄放行。
 固定规则按会话冻结，动态指令追加到本轮消息或新工具结果；OpenClaw 的动态指令
 已改到系统提示词尾部。输出脱敏只覆盖最终回复，不能撤回已流式发送的内容。

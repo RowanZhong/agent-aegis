@@ -27,10 +27,6 @@ class BridgeError(RuntimeError):
     """A bridge failure must never silently authorize a tool."""
 
 
-class HookDispatchError(RuntimeError):
-    """The host must deliver overlapping security inspections, not skip them."""
-
-
 class NodeBridge:
     def __init__(self, *, node: str, timeout: float, initialization: dict):
         self.node = node
@@ -198,7 +194,7 @@ class HermesAegis:
 
 def _register(ctx) -> None:
     from hermes_constants import get_hermes_home
-    from agent.skill_utils import get_all_skills_dirs, get_project_skills_dirs
+    from agent.skill_utils import get_scan_ordered_skills_dirs
 
     schema = json.loads((ROOT / "openclaw.plugin.json").read_text(encoding="utf-8"))
     config = {}
@@ -208,14 +204,6 @@ def _register(ctx) -> None:
             config[key] = value
     if config.get("allDefensesEnabled") is False:
         return
-    from hermes_cli import plugins
-    hook_timeout = getattr(plugins, "_resolve_hook_callback_timeout", None)
-    if callable(hook_timeout) and hook_timeout() != 0:
-        raise HookDispatchError(
-            "Set plugins.hook_callback_timeout: 0 in the active profile's config.yaml "
-            "and restart Hermes. Its bounded hook dispatcher can skip overlapping "
-            "security callbacks; AgentAegis bounds its own Node bridge I/O."
-        )
     timeout = ctx.get_config("bridgeTimeoutSeconds", 10)
     if isinstance(timeout, bool) or not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("bridgeTimeoutSeconds must be a finite positive number")
@@ -229,11 +217,7 @@ def _register(ctx) -> None:
     bridge = NodeBridge(node=ctx.get_config("nodeExecutable", "node"), timeout=timeout,
                         initialization={"home": str(get_hermes_home()),
                                         "state_dir": str(ctx.state.data_dir / "runtime"),
-                                        # Project roots take precedence over profile/external roots.
-                                        # Both resolvers exist before and after Hermes' Sep 2026
-                                        # removal of the combined scan-order helper.
-                                        "skill_roots": [str(p) for p in (
-                                            *get_project_skills_dirs(), *get_all_skills_dirs())],
+                                        "skill_roots": [str(p) for p in get_scan_ordered_skills_dirs()],
                                         "protectedSkillPaths": protected_skills, "config": config})
     ctx.on_unload(bridge.close)
     atexit.register(bridge.close)
@@ -259,9 +243,8 @@ def register(ctx) -> None:
     except Exception as exc:
         # Hermes removes registrations when register() raises. Keep a visible
         # deny guard on configuration/setup failure instead of disappearing.
-        message = f"{UNAVAILABLE} {exc}" if isinstance(exc, HookDispatchError) else UNAVAILABLE
-        LOG.error("AgentAegis configuration failed (%s); %s", type(exc).__name__, message)
-        ctx.register_hook("pre_tool_call", lambda **_: {"action": "block", "message": message})
-        ctx.register_hook("pre_llm_call", lambda **_: {"context": message})
-        ctx.register_hook("transform_tool_result", lambda **_: message)
-        ctx.register_hook("transform_llm_output", lambda **_: message)
+        LOG.error("AgentAegis configuration failed (%s); tool calls remain blocked", type(exc).__name__)
+        ctx.register_hook("pre_tool_call", lambda **_: {"action": "block", "message": UNAVAILABLE})
+        ctx.register_hook("pre_llm_call", lambda **_: {"context": UNAVAILABLE})
+        ctx.register_hook("transform_tool_result", lambda **_: UNAVAILABLE)
+        ctx.register_hook("transform_llm_output", lambda **_: UNAVAILABLE)
