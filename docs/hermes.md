@@ -81,6 +81,12 @@ must manage their own timeouts too. The adapter does not rewrite host settings
 or patch Hermes internals. Restart after changing it; do not enable
 `plugins.allow_deprecated_imports` as a workaround.
 
+Here, `0` selects synchronous callbacks on the calling thread and disables the
+host-managed timeout path. AgentAegis's default `bridgeTimeoutSeconds: 10` still
+bounds each Node write/read phase; it is not a total wall-clock bound across
+queued calls or other plugins. This requirement addresses hook delivery; the
+prompt-cache fix independently controls where dynamic context is attached.
+
 Omit `nodeExecutable` if `node` is on the Hermes process's PATH. Existing
 AgentAegis defense switches and `enforce`/`observe`/`off` modes keep their meaning.
 `allDefensesEnabled: false` disables registration and does not start Node.

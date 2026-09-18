@@ -3,8 +3,15 @@
 现支持 OpenClaw 和 **Hermes Agent v2026.8.19 / v2026.9.14**。安装、配置、生命周期映射、
 测试及限制请参见 [Hermes 适配说明](docs/hermes.md)。OpenClaw 的动态安全指令
 已移至系统提示词尾部，保留固定提示词前缀以便复用 KV cache。
-Hermes v2026.9.14 需设置 `plugins.hook_callback_timeout: 0`；该项对整个 profile
-生效，插件自身仍限制 Node 通信时间，具体影响见适配说明。
+
+> [!IMPORTANT]
+> **Hermes v2026.9.14 使用前必须配置：** 在当前 profile 的 `config.yaml` 中设置
+> `plugins.hook_callback_timeout: 0` 并重启。`0` 表示采用同步钩子调用；默认调度器
+> 即使尚未超时，也可能跳过正在并发执行的同名安全回调，遗漏输入检查或结果脱敏。
+> **此设置关闭整个 profile 的 Python 插件钩子宿主超时机制。** AgentAegis 自身仍有
+> Node 通信超时，其他插件需自行处理超时。未配置时，AgentAegis 会拒绝工具调用并提示修正。
+> v2026.8.19 无此要求。详见[配置及影响](docs/hermes.md#configuration)。
+
 <p align="center"> 
   <a href="README.md">English</a>
   |
