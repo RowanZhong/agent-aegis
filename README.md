@@ -53,6 +53,29 @@ git clone https://github.com/antgroup/agent-aegis
 openclaw plugins install ./agent-aegis
 ```
 
+On OpenClaw 2026.8.1, explicitly grant the conversation hooks needed by this
+security plugin in `openclaw.json`, then restart the Gateway:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "agent-aegis": {
+        "enabled": true,
+        "hooks": {
+          "allowConversationAccess": true,
+          "allowPromptInjection": true
+        }
+      }
+    }
+  }
+}
+```
+
+Merge this with existing settings. Without conversation access, OpenClaw blocks
+the prompt and output hooks. See the [live validation report](docs/live-validation-2026-09-18.md)
+for the tested Gateway path and its limits.
+
 **3.** (Optional) Enable AgentAegis with observe mode for safe rollout:
 
 ```json

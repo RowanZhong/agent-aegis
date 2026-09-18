@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { createClawAegisRuntime } from "../src/handlers.js";
-import { registerClawAegisPlugin } from "../index.js";
+import { registerClawAegisPlugin, wrapHookFailOpen } from "../index.js";
 import type { OpenClawPluginApi, PluginHookBeforePromptBuildResult } from "../runtime-api.js";
 
 const directories: string[] = [];
@@ -74,5 +74,27 @@ describe("OpenClaw cache-safe prompt hooks", () => {
     expect(result.prependSystemContext).toBeTruthy();
     expect(result.appendSystemContext).toBeTruthy();
     expect(result.prependContext).toBeUndefined();
+  });
+
+  it("returns synchronous message rewrites so OpenClaw applies redaction", async () => {
+    const { api, runtime } = await fixture();
+    registerClawAegisPlugin(api, () => runtime);
+    const handler = vi.mocked(api.on).mock.calls.find(([name]) => name === "before_message_write")?.[1];
+    const secret = "sk-" + "A1b2C3d4E5f6G7h8I9j0".repeat(2);
+    const result = handler({ message: {
+      role: "assistant", content: [{ type: "text", text: `API key: ${secret}` }],
+    } }, { sessionKey: "redaction" });
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.message.content[0].text).not.toContain(secret);
+    expect(result.message.content[0].text).toContain("[已脱敏]");
+  });
+
+  it("preserves fail-open behavior for synchronous errors and async rejections", async () => {
+    const { api } = await fixture();
+    const sync = wrapHookFailOpen(api, "before_message_write", () => { throw new Error("sync"); });
+    const asyncHook = wrapHookFailOpen(api, "gateway_start", async () => { throw new Error("async"); });
+    expect(sync({}, {})).toBeUndefined();
+    await expect(asyncHook({}, {})).resolves.toBeUndefined();
+    expect(api.logger.error).toHaveBeenCalledTimes(2);
   });
 });

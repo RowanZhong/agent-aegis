@@ -49,6 +49,28 @@ git clone https://github.com/antgroup/AgentAegis.git
 openclaw plugins install ./AgentAegis
 ```
 
+OpenClaw 2026.8.1 需要在 `openclaw.json` 中明确授予本安全插件会话 hook 权限，
+合并到现有配置后重启 Gateway：
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "agent-aegis": {
+        "enabled": true,
+        "hooks": {
+          "allowConversationAccess": true,
+          "allowPromptInjection": true
+        }
+      }
+    }
+  }
+}
+```
+
+未授权会话访问时，OpenClaw 会阻止提示词和输出相关 hook 注册。
+已验证的 Gateway 路径及验证范围见[真机验证报告](docs/live-validation-2026-09-18.md)。
+
 **3.**（可选）以观察模式启用 AgentAegis，安全上线：
 
 ```json

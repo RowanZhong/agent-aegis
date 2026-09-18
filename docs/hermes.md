@@ -157,6 +157,11 @@ inspection inputs only; the dispatch test substitutes the final tool executor.
 No live LLM call or production profile is required. CI pins Hermes to the exact
 release commit and checks the committed JavaScript against a fresh build.
 
+Separate from these credential-free tests, the [2026-09-18 live validation](live-validation-2026-09-18.md)
+ran real Anthropic inference and Hermes file/terminal tools, including a
+model-generated write rejected by the pre-tool guard. It also inspected actual
+OpenClaw Gateway HTTP requests to verify the dynamic system-context suffix.
+
 ## 中文说明
 
 该适配以原生插件运行于 Hermes v2026.8.19，复用 AgentAegis 的 TypeScript

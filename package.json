@@ -25,6 +25,7 @@
     "__init__.py",
     "hermes_adapter.py",
     "docs/hermes.md",
+    "docs/live-validation-2026-09-18.md",
     "README.md",
     "README_zh.md",
     "LEGAL.md",

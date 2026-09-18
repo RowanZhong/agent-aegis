@@ -10,16 +10,25 @@ export function wrapHookFailOpen(
   hookName: string,
   handler: GenericHookHandler,
 ): GenericHookHandler {
-  return async (event, ctx) => {
+  const onError = (error: unknown) => {
+    api.logger.error(
+      `[agent-aegis] ${hookName} failed; fail-open keeps OpenClaw running: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return undefined;
+  };
+  return (event, ctx) => {
     try {
-      return await handler(event, ctx);
+      const result = handler(event, ctx);
+      // OpenClaw ignores Promise results from synchronous hooks such as
+      // before_message_write. Preserve their return type while still catching
+      // rejections from asynchronous lifecycle hooks.
+      return result && typeof result.then === "function"
+        ? Promise.resolve(result).catch(onError)
+        : result;
     } catch (error) {
-      api.logger.error(
-        `[agent-aegis] ${hookName} failed; fail-open keeps OpenClaw running: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return undefined;
+      return onError(error);
     }
   };
 }
