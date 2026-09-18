@@ -25,6 +25,7 @@
     "__init__.py",
     "hermes_adapter.py",
     "docs/hermes.md",
+    "docs/README-hermes-install_zh.md",
     "docs/live-validation-2026-09-18.md",
     "docs/live-coverage-2026-09-18.md",
     "docs/live-results-2026-09-18.json",

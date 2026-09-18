@@ -11,6 +11,8 @@ after the host system prompt to preserve its stable KV-cache prefix.
 > Hermes support currently targets **v2026.8.19 only**. **v2026.9.14 is not supported.**
 > This adapter does not require disabling Hermes' host-managed hook timeouts.
 
+**Installing on Hermes? See the [Chinese installation README](docs/README-hermes-install_zh.md)** for pinned downloads, configuration, verification, updates and removal. The Quick Start below is for OpenClaw.
+
 <p align="center"> 
   <a href="README.md">English</a>
   |

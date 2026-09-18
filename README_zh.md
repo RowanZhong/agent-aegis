@@ -8,6 +8,8 @@
 > Hermes 当前仅支持 **v2026.8.19**，**暂不支持 v2026.9.14**。
 > 本适配不要求关闭 Hermes 的宿主钩子超时机制。
 
+**安装到 Hermes：[中文安装 README](docs/README-hermes-install_zh.md)**（固定版本下载、配置、验证、更新和卸载）。下方快速开始面向 OpenClaw。
+
 <p align="center"> 
   <a href="README.md">English</a>
   |

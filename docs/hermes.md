@@ -11,6 +11,9 @@ source modifications, network service, extra model tool or LLM API key are neede
 > **Hermes v2026.9.14 is currently unsupported.** Use the pinned v2026.8.19 release
 > for this adapter. No global hook-timeout override is required.
 
+For step-by-step instructions with a pinned fork download, see the
+[中文安装 README](README-hermes-install_zh.md).
+
 ## Install from a reviewed checkout
 
 Place a reviewed copy of this repository, including the committed JavaScript
