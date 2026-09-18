@@ -23,7 +23,7 @@ hermes plugins list
 
 Restart the CLI/gateway after enabling or changing settings. Start a new
 conversation to pick up a changed static policy. The checked-in runtime does
-not need `npm install`; developers run `npm install --ignore-scripts && npm test`
+not need `npm install`; developers run `npm ci --ignore-scripts && npm test`
 after changing TypeScript.
 
 Hermes' v2026.8.19 generic Git installer scanner flags the repository's attack
@@ -141,7 +141,7 @@ changes tool schemas, or inserts synthetic turns.
 ## Tests
 
 ```bash
-npm install --ignore-scripts
+npm ci --ignore-scripts
 npm test
 git clone --depth 1 --branch v2026.8.19 \
   https://github.com/NousResearch/hermes-agent.git /tmp/hermes-v2026.8.19

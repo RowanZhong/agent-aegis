@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: npm install --ignore-scripts
+      - run: npm ci --ignore-scripts
       - run: npm test
       - name: Check committed runtime artifacts
         run: git diff --exit-code -- '*.js' '*.d.ts'
