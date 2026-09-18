@@ -1,0 +1,33 @@
+name: agent-aegis
+version: "2026.3.14"
+description: "AgentAegis runtime protection for Hermes Agent v2026.8.19"
+author: Ant Group
+kind: standalone
+license: Apache-2.0
+homepage: https://github.com/antgroup/agent-aegis
+config_schema:
+  allDefensesEnabled:
+    type: boolean
+    default: true
+    description: Enable AgentAegis runtime protection.
+  defaultBlockingMode:
+    type: string
+    default: enforce
+    description: "Default guard mode: enforce, observe, or off."
+  nodeExecutable:
+    type: string
+    default: node
+    description: Node.js 22+ executable name or absolute path.
+  bridgeTimeoutSeconds:
+    type: number
+    default: 10
+    description: Maximum wait for each security-worker I/O phase.
+hooks:
+  - pre_llm_call
+  - pre_tool_call
+  - post_tool_call
+  - transform_tool_result
+  - transform_llm_output
+  - on_session_end
+  - on_session_finalize
+  - on_session_reset

@@ -1,0 +1,33 @@
+name: Runtime compatibility
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm install --ignore-scripts
+      - run: npm test
+      - name: Check committed runtime artifacts
+        run: git diff --exit-code -- '*.js' '*.d.ts'
+      - name: Check out the supported Hermes release
+        uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: fcbd1076a93841fa88855acce810e342a5b78101
+          path: .test-hosts/hermes
+      - run: python -m pip install -r tests/requirements-hermes.txt
+      - name: Exercise the native Hermes plugin and live Node worker
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.test-hosts/hermes
+        run: python -m pytest -q tests/test_hermes_integration.py
+      - run: npm pack --dry-run

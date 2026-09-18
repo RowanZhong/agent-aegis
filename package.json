@@ -2,7 +2,7 @@
   "name": "@antgroup/agent-aegis",
   "version": "2026.3.14",
   "private": false,
-  "description": "OpenClaw runtime safety guard plugin (AgentAegis) — multi-layer defense for prompt, tool, and tool-result flows.",
+  "description": "OpenClaw and Hermes runtime safety guard plugin (AgentAegis) — multi-layer defense for prompt, tool, and tool-result flows.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -21,6 +21,10 @@
     "src/**/*.js",
     "src/**/*.d.ts",
     "openclaw.plugin.json",
+    "plugin.yaml",
+    "__init__.py",
+    "hermes_adapter.py",
+    "docs/hermes.md",
     "README.md",
     "README_zh.md",
     "LEGAL.md",
@@ -42,7 +46,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build",
-    "test": "vitest run",
+    "test": "npm run build && vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {

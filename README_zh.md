@@ -1,4 +1,8 @@
 # AgentAegis
+
+现支持 OpenClaw 和 **Hermes Agent v2026.8.19**。安装、配置、生命周期映射、
+测试及限制请参见 [Hermes 适配说明](docs/hermes.md)。OpenClaw 的动态安全指令
+已移至系统提示词尾部，保留固定提示词前缀以便复用 KV cache。
 <p align="center"> 
   <a href="README.md">English</a>
   |

@@ -2,6 +2,11 @@
 
 # AgentAegis
 
+Supports OpenClaw and **Hermes Agent v2026.8.19**. See the
+[Hermes adapter guide](docs/hermes.md) for installation, configuration, lifecycle
+coverage, cache behavior and tests. OpenClaw dynamic safety context is appended
+after the host system prompt to preserve its stable KV-cache prefix.
+
 <p align="center"> 
   <a href="README.md">English</a>
   |

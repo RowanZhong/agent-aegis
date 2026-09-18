@@ -85,12 +85,13 @@ const SELF_INTEGRITY_FILES = [
   "src/scan-worker.ts",
   "src/scan-worker.js",
   "src/handlers.ts",
+  "src/handlers.js",
+  "plugin.yaml",
+  "__init__.py",
+  "hermes_adapter.py",
+  "src/hermes-bridge.js",
+  "src/hermes-tools.js",
 ] as const;
-
-function joinPresentTextSegments(segments: Array<string | undefined>): string | undefined {
-  const values = segments.map((segment) => segment?.trim()).filter(Boolean);
-  return values.length > 0 ? values.join("\n\n") : undefined;
-}
 
 function readCommandText(params: Record<string, unknown>): string | undefined {
   for (const key of ["command", "cmd"]) {
@@ -453,6 +454,9 @@ export function createClawAegisRuntime(
   api: OpenClawPluginApi,
   options?: {
     now?: () => number;
+    /** Host adapters can keep runtime data separate from installed plugin code. */
+    stateDir?: string;
+    skillScanRoots?: string[];
     scanRunner?: (
       request: import("./types.js").SkillScanRequest,
     ) => Promise<import("./types.js").SkillScanResult>;
@@ -461,10 +465,10 @@ export function createClawAegisRuntime(
 ) {
   const logger = createAegisLogger(api);
   const now = options?.now ?? Date.now;
-  const stateDir = resolveClawAegisStateDir(api);
+  const stateDir = options?.stateDir ?? resolveClawAegisStateDir(api);
   const emitDefenseEvent = createDefenseEventWriter(stateDir);
   const config = resolveClawAegisPluginConfig(api);
-  const skillScanRoots = resolveSkillScanRoots(api);
+  const skillScanRoots = options?.skillScanRoots ?? resolveSkillScanRoots(api);
   const state = new ClawAegisState({ stateDir, logger, now: options?.now });
   const emitSkillScanEvent = createSkillScanEventWriter(stateDir);
   const scanService = new SkillScanService({
@@ -490,6 +494,7 @@ export function createClawAegisRuntime(
   return {
     state,
     scanService,
+    staticSystemContext,
     hooks: {
       gateway_start: async () => {
         logger.info("claw-aegis: 网关启动", {
@@ -827,10 +832,6 @@ export function createClawAegisRuntime(
         }
         const currentState = sessionKey ? state.consumePromptState(sessionKey) : syntheticState;
         const dynamicPromptContext = buildDynamicPromptContext(currentState);
-        const prependSystemContext = joinPresentTextSegments([
-          staticSystemContext,
-          dynamicPromptContext,
-        ]);
         const durationMs = now() - startedAt;
         if (currentState?.prependNeeded) {
           logger.info("claw-aegis: 已注入提示防护", {
@@ -882,7 +883,7 @@ export function createClawAegisRuntime(
             userInput: sessionKey ? state.peekLastUserInput(sessionKey) : undefined,
           });
         }
-        if (!prependSystemContext) {
+        if (!staticSystemContext && !dynamicPromptContext) {
           logDefenseResult(logger, {
             hook: "before_prompt_build",
             mechanism: "prompt_guard",
@@ -928,7 +929,10 @@ export function createClawAegisRuntime(
           durationMs,
         });
         return {
-          prependSystemContext,
+          // Only invariant policy belongs before the host's system prompt.
+          // Per-turn findings must follow it to preserve the shared KV prefix.
+          ...(staticSystemContext ? { prependSystemContext: staticSystemContext } : {}),
+          ...(dynamicPromptContext ? { appendSystemContext: dynamicPromptContext } : {}),
         };
       },
 
@@ -1142,6 +1146,7 @@ export function createClawAegisRuntime(
         ctx: {
           sessionKey?: string;
           runId?: string;
+          workspaceDir?: string;
         },
       ): PluginHookBeforeToolCallResult | undefined => {
         const normalizedToolName = normalizeToolName(event.toolName);
@@ -1198,7 +1203,7 @@ export function createClawAegisRuntime(
           });
           return undefined;
         }
-        const baseDir = process.cwd();
+        const baseDir = ctx.workspaceDir ?? process.cwd();
         const protectedRoots = isDefenseEnabled(selfProtectionMode) ? state.getProtectedRoots() : [];
         const pathCandidates = resolveProtectedPathCandidates(
           normalizedToolName,
@@ -1409,6 +1414,7 @@ export function createClawAegisRuntime(
         ctx: {
           sessionKey?: string;
           runId?: string;
+          workspaceDir?: string;
         },
       ) => {
         const sessionKey = ctx.sessionKey?.trim();
@@ -1423,7 +1429,7 @@ export function createClawAegisRuntime(
             runId,
             sessionKey,
             timestamp: now(),
-            baseDir: process.cwd(),
+            baseDir: ctx.workspaceDir ?? process.cwd(),
           });
           if (artifacts.length > 0) {
             state.noteRunScriptArtifacts(runId, {

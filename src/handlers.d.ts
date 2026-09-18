@@ -4,11 +4,15 @@ import { SkillScanService } from "./scan-service.js";
 import { ClawAegisState } from "./state.js";
 export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?: {
     now?: () => number;
+    /** Host adapters can keep runtime data separate from installed plugin code. */
+    stateDir?: string;
+    skillScanRoots?: string[];
     scanRunner?: (request: import("./types.js").SkillScanRequest) => Promise<import("./types.js").SkillScanResult>;
     toolCallDefenseStrategies?: readonly ToolCallDefenseStrategy[];
 }): {
     state: ClawAegisState;
     scanService: SkillScanService;
+    staticSystemContext: string | undefined;
     hooks: {
         gateway_start: () => Promise<void>;
         message_received: (event: {
@@ -59,10 +63,12 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
         before_tool_call: (event: PluginHookBeforeToolCallEvent, ctx: {
             sessionKey?: string;
             runId?: string;
+            workspaceDir?: string;
         }) => PluginHookBeforeToolCallResult | undefined;
         after_tool_call: (event: PluginHookAfterToolCallEvent, ctx: {
             sessionKey?: string;
             runId?: string;
+            workspaceDir?: string;
         }) => void;
         llm_output: (event: {
             assistantTexts: string[];
