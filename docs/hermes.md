@@ -166,6 +166,11 @@ The [expanded capability coverage](live-coverage-2026-09-18.md) distinguishes
 real-model sessions, explicitly driven native tools/hooks, scanner processes
 and browser checks. It records the inline-path and encoded-result issues found
 and fixed during those runs, plus remaining host and coverage limits.
+It also captures five actual Anthropic HTTP requests from one Hermes session:
+system and tool schemas remain byte-identical while dynamic findings appear
+only in the current user message or new tool result, with prior content preserved.
+That transport probe uses a deterministic loopback endpoint and does not measure
+provider cache hit rates.
 
 ## 中文说明
 

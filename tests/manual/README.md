@@ -26,6 +26,10 @@ HERMES_TEST_ROOT=/absolute/path/to/hermes-v2026.8.19
   --hermes-root "$HERMES_TEST_ROOT" --output /tmp/aegis-new-lifecycle --check-ttl
 
 node tests/manual/scanner_live.mjs /tmp/aegis-new-scanner
+
+# Actual Anthropic HTTP request capture against a local deterministic endpoint.
+"$HERMES_TEST_PYTHON" tests/manual/hermes_prompt_capture.py \
+  --hermes-root "$HERMES_TEST_ROOT" --output /tmp/aegis-new-prompt-capture
 ```
 
 `model` uses real inference and real tools. `native` constructs calls for the
@@ -64,6 +68,14 @@ native hook; this is not model inference. `--check-ttl` additionally waits 301
 real seconds without substituting a clock. The scanner script uses the real
 engine worker and terminates only that owned worker for fault injection; it
 does not run a Hermes conversation.
+
+The prompt capture script runs four real Hermes turns and records five actual
+Anthropic SDK HTTP request bodies. A loopback endpoint supplies deterministic
+SSE replies and one real file-tool call. Synthetic credentials are fixed in the
+test process so native credential refresh cannot change API-key/OAuth identity
+formatting between requests. It checks the actual system/tools fields, dynamic
+context placement and replay, not provider cache hit statistics. Request headers
+are not persisted. There is no external inference in this transport probe.
 
 All payload effects target new disposable files. The pipe-to-shell fixture
 only prints/writes a marker. Provenance and encoded fixtures contain inert text

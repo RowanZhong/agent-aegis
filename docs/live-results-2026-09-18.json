@@ -2117,5 +2117,34 @@
       "case": "TTL after repeat identical tool result",
       "evidence": "/private/tmp/aegis-lifecycle-final/report.json"
     }
-  ]
+  ],
+  "hermes_prompt_transport": {
+    "transport": "Actual Anthropic Messages HTTP through Hermes native SDK; loopback deterministic SSE endpoint",
+    "checks": {
+      "five_actual_http_requests": true,
+      "only_synthetic_auth_used": true,
+      "system_payload_byte_identical": true,
+      "tool_schema_byte_identical": true,
+      "static_aegis_policy_in_system": true,
+      "dynamic_skill_context_absent_from_every_system": true,
+      "dynamic_skill_context_in_current_user_message": true,
+      "baseline_user_replay_byte_identical": true,
+      "risky_user_replay_byte_identical": true,
+      "real_tool_result_has_immediate_context": true,
+      "tool_result_replay_preserved": true
+    },
+    "system_json_utf8_bytes": 8443,
+    "system_json_sha256": "512e4bf401c271b8809a72611d48a7a91a1e3abd965456d2d0713acfe54c3a49",
+    "tool_schema_json_utf8_bytes": 6401,
+    "request_paths": [
+      "/v1/messages",
+      "/v1/messages",
+      "/v1/messages",
+      "/v1/messages",
+      "/v1/messages"
+    ],
+    "provider_cache_hit_rate_measured": false,
+    "external_model_inference": false,
+    "evidence_directory": "/private/tmp/aegis-hermes-wire-final"
+  }
 }
