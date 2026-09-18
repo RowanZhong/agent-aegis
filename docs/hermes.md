@@ -162,6 +162,11 @@ ran real Anthropic inference and Hermes file/terminal tools, including a
 model-generated write rejected by the pre-tool guard. It also inspected actual
 OpenClaw Gateway HTTP requests to verify the dynamic system-context suffix.
 
+The [expanded capability coverage](live-coverage-2026-09-18.md) distinguishes
+real-model sessions, explicitly driven native tools/hooks, scanner processes
+and browser checks. It records the inline-path and encoded-result issues found
+and fixed during those runs, plus remaining host and coverage limits.
+
 ## 中文说明
 
 该适配以原生插件运行于 Hermes v2026.8.19，复用 AgentAegis 的 TypeScript

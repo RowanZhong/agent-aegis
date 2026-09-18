@@ -26,6 +26,8 @@
     "hermes_adapter.py",
     "docs/hermes.md",
     "docs/live-validation-2026-09-18.md",
+    "docs/live-coverage-2026-09-18.md",
+    "docs/live-results-2026-09-18.json",
     "README.md",
     "README_zh.md",
     "LEGAL.md",

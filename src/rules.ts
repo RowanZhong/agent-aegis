@@ -2372,8 +2372,8 @@ export function resolveInlineExecutionViolation(
   }
   const normalized = command.slice(0, INLINE_EXEC_TEXT_MAX_CHARS);
   const tokens = tokenizeShellCommand(normalized);
-  const interpreter = tokens[0]?.toLowerCase();
-  if (!interpreter || !INLINE_EXECUTORS.has(interpreter)) {
+  const interpreter = tokens[0] ? basenameLowercase(tokens[0]) : undefined;
+  if (!interpreter || (!INLINE_EXECUTORS.has(interpreter) && !/^python\d+(?:\.\d+)?$/.test(interpreter))) {
     return undefined;
   }
   const flag = tokens[1]?.toLowerCase();
@@ -2390,7 +2390,17 @@ export function resolveInlineExecutionViolation(
     if (detectHighRiskCommand(inlineText)) {
       return BLOCK_REASON_HIGH_RISK_OPERATION;
     }
-    const inlineMatches = buildCommandCandidates(inlineText, baseDir).filter((candidate) =>
+    // Shell tokenization treats e.g. fs.writeFileSync("/protected", "data")
+    // as one token. Also inspect literal strings embedded in inline code;
+    // never evaluate the code or interpolate expressions to resolve a path.
+    const literalPaths: string[] = [];
+    for (const match of inlineText.matchAll(/(["'`])((?:\\.|(?!\1)[^\\])*)\1/g)) {
+      let literal = match[2];
+      literal = literal.replace(/\\x([0-9a-f]{2})|\\u([0-9a-f]{4})|\\([\\"'`])/gi,
+        (_value, hex, unicode, escaped) => escaped ?? String.fromCharCode(parseInt(hex ?? unicode, 16)));
+      if (looksPathLikeToken(literal)) literalPaths.push(normalizeComparablePath(literal, baseDir));
+    }
+    const inlineMatches = [...buildCommandCandidates(inlineText, baseDir), ...literalPaths].filter((candidate) =>
       matchesProtectedPathTarget(candidate, protectedRoots),
     );
     if (inlineMatches.length > 0) {

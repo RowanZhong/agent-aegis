@@ -66,6 +66,10 @@ const TOKEN_BREAK_CHARS = new Set([
   ",",
   ";",
   ":",
+  // Hermes read_file prefixes lines with `N|`; serialized results may also
+  // contain JSON escape separators. Neither character belongs to our encodings.
+  "|",
+  "\\",
   "=",
   "<",
   ">",

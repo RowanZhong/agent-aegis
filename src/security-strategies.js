@@ -221,7 +221,7 @@ export const TOOL_RESULT_RISK_RULES = [
     {
         flag: "role-takeover",
         patterns: [
-            /\bignore previous instructions\b/i,
+            /\bignore (?:all )?(?:the )?(?:previous|prior) instructions\b/i,
             /\byou are now\b/i,
             /\bact as system\b/i,
             /\bdeveloper message\b/i,
@@ -231,7 +231,7 @@ export const TOOL_RESULT_RISK_RULES = [
             /系统提示词/i,
         ],
         explicitPatterns: [
-            /\bignore previous instructions\b/i,
+            /\bignore (?:all )?(?:the )?(?:previous|prior) instructions\b/i,
             /\bdeveloper message\b/i,
             /\bsystem prompt\b/i,
             /忽略之前指令/i,
@@ -239,7 +239,7 @@ export const TOOL_RESULT_RISK_RULES = [
             /系统提示词/i,
         ],
         compactPatterns: [
-            /ignorepreviousinstructions/i,
+            /ignore(?:all)?(?:the)?(?:previous|prior)instructions/i,
             /youarenow/i,
             /actassystem/i,
             /developermessage/i,
@@ -249,7 +249,7 @@ export const TOOL_RESULT_RISK_RULES = [
             /系统提示词/i,
         ],
         explicitCompactPatterns: [
-            /ignorepreviousinstructions/i,
+            /ignore(?:all)?(?:the)?(?:previous|prior)instructions/i,
             /developermessage/i,
             /systemprompt/i,
             /忽略之前指令/i,
@@ -260,7 +260,7 @@ export const TOOL_RESULT_RISK_RULES = [
     {
         flag: "policy-bypass",
         patterns: [
-            /\bdisable safety\b/i,
+            /\bdisable (?:all )?(?:the )?(?:safety|guardrails?)\b/i,
             /\bignore safety rules\b/i,
             /\bbypass approval\b/i,
             /\bdo not follow restrictions\b/i,
@@ -269,13 +269,13 @@ export const TOOL_RESULT_RISK_RULES = [
             /绕过审批/i,
         ],
         explicitPatterns: [
-            /\bdisable safety\b/i,
+            /\bdisable (?:all )?(?:the )?(?:safety|guardrails?)\b/i,
             /\bbypass approval\b/i,
             /\bdo not follow restrictions\b/i,
             /绕过审批/i,
         ],
         compactPatterns: [
-            /disablesafety/i,
+            /disable(?:all)?(?:the)?(?:safety|guardrails?)/i,
             /ignoresafetyrules/i,
             /bypassapproval/i,
             /donotfollowrestrictions/i,
@@ -283,7 +283,7 @@ export const TOOL_RESULT_RISK_RULES = [
             /忽略安全规则/i,
             /绕过审批/i,
         ],
-        explicitCompactPatterns: [/disablesafety/i, /bypassapproval/i, /donotfollowrestrictions/i, /绕过审批/i],
+        explicitCompactPatterns: [/disable(?:all)?(?:the)?(?:safety|guardrails?)/i, /bypassapproval/i, /donotfollowrestrictions/i, /绕过审批/i],
     },
     {
         flag: "tool-induction",

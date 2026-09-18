@@ -1,5 +1,10 @@
 # Live validation — 2026-09-18
 
+The expanded follow-up, including the original-capability coverage table,
+additional live findings/fixes and current regression counts, is recorded in
+[the detailed coverage report](live-coverage-2026-09-18.md). The sections below
+preserve the scope and evidence from the first round.
+
 Passed on macOS 26.6.2 arm64, Python 3.11.16 and Node.js 26.8.1.
 Hermes used the unmodified **v2026.8.19** checkout at
 `fcbd1076a93841fa88855acce810e342a5b78101`. OpenClaw was the locally installed
