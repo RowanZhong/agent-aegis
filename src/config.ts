@@ -70,6 +70,8 @@ export type ClawAegisPluginConfig = {
   toolCallEnforcementEnabled: boolean;
   dispatchGuardEnabled: boolean;
   dispatchGuardMode: DefenseMode;
+  dwsReplyGuardEnabled: boolean;
+  dwsReplyGuardMode: DefenseMode;
   protectedPaths: string[];
   protectedSkills: string[];
   protectedPlugins: string[];
@@ -117,6 +119,8 @@ export const clawAegisPluginConfigSchema = {
     toolCallEnforcementEnabled: defaultEnabledBooleanSchema,
     dispatchGuardEnabled: defaultEnabledBooleanSchema,
     dispatchGuardMode: defaultDefenseModeSchema,
+    dwsReplyGuardEnabled: { type: "boolean", default: false },
+    dwsReplyGuardMode: { type: "string", enum: [...DEFENSE_MODES] },
     protectedPaths: {
       type: "array",
       items: { type: "string" },
@@ -145,6 +149,14 @@ export const clawAegisPluginConfigSchema = {
 } satisfies OpenClawPluginConfigSchema["jsonSchema"];
 
 export const clawAegisPluginUiHints = {
+  dwsReplyGuardEnabled: {
+    label: "DWS AI Reply Guard",
+    help: "Opt in to evidence-based DWS AI reply checks. Fixed templates and exact owner messages remain usable; unsupported flows are skipped.",
+  },
+  dwsReplyGuardMode: {
+    label: "DWS AI Reply Mode",
+    help: "off disables, observe records, enforce blocks proven flows; defaults to the global blocking mode when enabled.",
+  },
   allDefensesEnabled: {
     label: "Enable All Defenses",
     help: "Master switch for every claw-aegis defense below.",
@@ -448,6 +460,10 @@ export function resolveClawAegisPluginConfig(api: OpenClawPluginApi): ClawAegisP
   return {
     allDefensesEnabled,
     defaultBlockingMode,
+    dwsReplyGuardEnabled: allDefensesEnabled && raw.dwsReplyGuardEnabled === true
+      && (isDefenseMode(raw.dwsReplyGuardMode) ? raw.dwsReplyGuardMode : defaultBlockingMode) !== "off",
+    dwsReplyGuardMode: !allDefensesEnabled || raw.dwsReplyGuardEnabled !== true ? "off"
+      : isDefenseMode(raw.dwsReplyGuardMode) ? raw.dwsReplyGuardMode : defaultBlockingMode,
     selfProtectionEnabled: selfProtectionMode !== "off",
     selfProtectionMode,
     commandBlockEnabled: commandBlockMode !== "off",

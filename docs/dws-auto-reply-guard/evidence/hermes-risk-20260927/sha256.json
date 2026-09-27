@@ -1,0 +1,37 @@
+{
+  "hermes": {
+    "run_agent.py": "b8e0244cfdbdce9328040d92adb9b89d78351000ee88bafae35d71b3e33fb8a1",
+    "agent/conversation_loop.py": "740349e7ff0aafda0585d84484824a01ac8ca78e86dafa11dc9014f0a621a326",
+    "agent/turn_context.py": "fbaa02f8b569c866c044514f700c463af5391e43d92edf92f43ac05c57698b36",
+    "agent/turn_finalizer.py": "8c6157b55abf936d6f413c3722c919e2a8a0f02439b3c99ba13f6b22063cab7f",
+    "agent/tool_executor.py": "f22b01a501e7c89347db73f997890cbf04a376b3686caf5ea4124ee87881a80e",
+    "model_tools.py": "32a106d66835dc9f88f15624076086a53cbd4bb7ed80889228d0e53f62d4cfac",
+    "tools/terminal_tool.py": "59a0f637caec97c0a87aed5c667267c537d8747dcab91b408850e34c9eeba64a",
+    "tools/environments/local.py": "7d680c252bedc88ff7b80d50a5bfbdb9b926823d8bbc521f606e7b58237cbc1e",
+    "tools/approval.py": "87aa9f5ee1dc4c0e812aff99de33b0f594907a1cde68c262dd62f5afad14ef5f",
+    "hermes_cli/plugins.py": "4a0297785f51dee1c4d59e0001ed92f31afdc8f9f0f7ffe7906931f6021eeb27",
+    "hermes_constants.py": "3b10042e0b6127236706b17e8ba3c80f972eb16d95a5442f9ac24d543c8b156f",
+    "cli.py": "7a025b2014380b587a736277c77b6a0e9d3b91edcce8afeb70046616e50aa354",
+    "gateway/run.py": "ce4ad5d6aae293acb29a308a93b8abd7606bdb7868e3b4f3ad4a0843402d51cf",
+    "SECURITY.md": "08b733d1f2c71f8cdd87200beb10c06185d0912a6eb19bbf69149dbb4e207a55"
+  },
+  "aegis": {
+    "hermes_adapter.py": "934b26dcee4beaff4d73c4305a8fdad69af80c7b4bd44ab89b52241ddd751bfb",
+    "src/hermes-bridge.ts": "08e58f0c274781d3af488719fc9410e3653656b321c3a2f7104500a073d2e663",
+    "src/hermes-bridge.js": "89c2a086cd57da9410331533989df8d9e49078c92e058bbac091f693dabc80de",
+    "src/config.ts": "ec2fb444619f0821937a7488279c8d1bf6e365f1fca4ac628c53fcec7eb3b8ce",
+    "src/rules.ts": "268138c07a2aee12a8b185c15d9bb57b2ac3560e1128e271371e1f15a0ba4060",
+    "plugin.yaml": "b829c2de4e6d7ce4ede846b80a4ad8d98173e3d0ca3c48db689a025fe3f6f96d"
+  },
+  "dws": {
+    "internal/corecmd/corecmd.go": "0298369955cca26bf28c9012902c4f5196575ce0767bb376978a5da91c21c9ad",
+    "internal/shortcut/chat/unified_send.go": "e41de5c5efbdbc9e1a9454d43f78afc385b1f505699c3ea060d7898c45b2710d"
+  },
+  "assessment_artifacts": {
+    "reachability-probe.py": "b218a3ea6deab1a628cf5b98e6bdf4d2ee3f4cb786e037e1307559160deca928",
+    "agent-summary.json": "a76d2ba697b21499eb388a9e66321d808a0a52d919f1ae9c18739754c0501ff7",
+    "script-transport-checks.json": "7f7b09bf5493dcbcdc97d54c92a42662f9fc216af3511a693a3aadd9e49ff8e5",
+    "script-summary.json": "89603b86580573052bfadda17b904e51cbd1a5619aaa8c550a24c285cb661bd0",
+    "agent-transport-checks.json": "cb7306814b168165c79cb27359f08bcf53a7eeb500bab5b6c4cb7db2181c1010"
+  }
+}

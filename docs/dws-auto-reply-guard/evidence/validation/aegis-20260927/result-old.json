@@ -1,0 +1,116 @@
+{
+  "environment": {
+    "node": "v26.8.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCpu": 10,
+    "totalMemory": 25769803776
+  },
+  "scope": "isolated hook/component replay; no tool commands, DWS, network, model, gateway, or production plugin changes",
+  "aegisCommit": "23d59b8986b86de448d24ff973e662295768d533",
+  "mode": "old",
+  "hostVersion": "2026.7.1-2",
+  "results": [
+    {
+      "case": "ordinary",
+      "result": "allowed"
+    },
+    {
+      "case": "read",
+      "result": "allowed"
+    },
+    {
+      "case": "send",
+      "result": "allowed"
+    },
+    {
+      "case": "native",
+      "result": "allowed"
+    },
+    {
+      "case": "listen",
+      "result": "allowed"
+    },
+    {
+      "case": "pipeline",
+      "result": "allowed"
+    },
+    {
+      "case": "python",
+      "result": "allowed"
+    },
+    {
+      "case": "same read four times same run",
+      "calls": [
+        "allowed",
+        "allowed",
+        "allowed",
+        {
+          "block": true,
+          "blockReason": "安全限制：检测到重复高风险工具调用，已停止本次操作。"
+        }
+      ]
+    },
+    {
+      "case": "probe deny; Aegis allows",
+      "priority": -100,
+      "probeCalls": 1,
+      "result": {
+        "block": true,
+        "blockReason": "test probe deny"
+      }
+    },
+    {
+      "case": "probe deny; Aegis allows",
+      "priority": 100,
+      "probeCalls": 1,
+      "result": {
+        "block": true,
+        "blockReason": "test probe deny"
+      }
+    },
+    {
+      "case": "Aegis deny short circuits later probe",
+      "probeCalls": 0,
+      "result": {
+        "block": true,
+        "blockReason": "安全限制：禁止执行 openclaw CLI 或控制命令。"
+      }
+    },
+    {
+      "case": "probe allows; Aegis still denies",
+      "probeCalls": 1,
+      "result": {
+        "block": true,
+        "blockReason": "安全限制：禁止执行 openclaw CLI 或控制命令。"
+      }
+    },
+    {
+      "case": "public Aegis async wrapper at synchronous hook",
+      "directChanged": true,
+      "wrapperReturnsPromise": true,
+      "hostResult": "ignored"
+    },
+    {
+      "case": "script written in run then calls openclaw CLI",
+      "result": "allowed"
+    }
+  ],
+  "dispatchBench": [
+    {
+      "name": "actual host + noop-probe",
+      "n": 2000,
+      "p50_ms": 0.008250000000003865,
+      "p95_ms": 0.022165999999998576,
+      "p99_ms": 0.0494160000000079
+    },
+    {
+      "name": "actual host + Aegis + noop-probe",
+      "n": 2000,
+      "p50_ms": 0.0534579999999778,
+      "p95_ms": 0.07066599999998857,
+      "p99_ms": 0.14195799999998826
+    }
+  ]
+}

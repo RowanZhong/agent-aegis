@@ -6,6 +6,14 @@ kind: standalone
 license: Apache-2.0
 homepage: https://github.com/antgroup/agent-aegis
 config_schema:
+  dwsReplyGuardEnabled:
+    type: boolean
+    default: false
+    description: Opt in to evidence-based DWS AI reply checks.
+  dwsReplyGuardMode:
+    type: string
+    enum: ["off", observe, enforce]
+    description: Inherits defaultBlockingMode when enabled and unset.
   allDefensesEnabled:
     type: boolean
     default: true
@@ -23,6 +31,8 @@ config_schema:
     default: 10
     description: Maximum wait for each security-worker I/O phase.
 hooks:
+  - pre_api_request
+  - post_api_request
   - pre_llm_call
   - pre_tool_call
   - post_tool_call

@@ -1,0 +1,33 @@
+{
+  "request_shapes": [
+    {
+      "model": "dws-risk-fixture",
+      "stream": true,
+      "tools": [
+        "process",
+        "terminal"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ]
+    },
+    {
+      "model": "dws-risk-fixture",
+      "stream": true,
+      "tools": [
+        "process",
+        "terminal"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ]
+    }
+  ],
+  "native_api_calls": 2,
+  "external_canary_seen_in_tool_result": false,
+  "aegis_untrusted_result_reminder_seen": true
+}

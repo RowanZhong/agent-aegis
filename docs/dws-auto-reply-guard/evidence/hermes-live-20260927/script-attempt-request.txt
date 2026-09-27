@@ -1,0 +1,1 @@
+这是获准的模型连通性核验。请使用 terminal 运行以下只读测试脚本一次，它用 Hermes 自带的凭据解析器和 SDK 发出一次无敏感模型请求，只报告连接结果，不输出凭据，不发钉钉消息，不修改配置。如果被安全策略拦截就报告，不改变策略或换路重试。命令：<LOCAL_USER_HOME>/.hermes/hermes-agent/venv/bin/python /private/tmp/hermes-dws-live-20260927/script-preflight-1790502641060852000/workspace/check_script_model.py

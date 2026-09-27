@@ -2,6 +2,7 @@ import type { PluginHookAfterToolCallEvent, PluginHookAgentEndEvent, PluginHookB
 import { type ToolCallDefenseStrategy } from "./security-strategies.js";
 import { SkillScanService } from "./scan-service.js";
 import { ClawAegisState } from "./state.js";
+import { DwsReplyGuard, type ReplyContext } from "./dws-reply-guard/index.js";
 export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?: {
     now?: () => number;
     /** Host adapters can keep runtime data separate from installed plugin code. */
@@ -11,9 +12,26 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
     toolCallDefenseStrategies?: readonly ToolCallDefenseStrategy[];
 }): {
     state: ClawAegisState;
+    dwsReplyGuard: DwsReplyGuard;
     scanService: SkillScanService;
     staticSystemContext: string | undefined;
     hooks: {
+        before_model_resolve: (event: {
+            prompt?: string;
+        }, ctx: ReplyContext) => void;
+        before_agent_run: (event: {
+            senderIsOwner?: boolean;
+        }, ctx: ReplyContext) => void;
+        model_call_started: (event: {
+            callId?: string;
+        }, ctx: ReplyContext) => void;
+        model_call_ended: (event: {
+            callId?: string;
+            outcome?: string;
+        }, ctx: ReplyContext) => void;
+        before_compaction: (_event: unknown, ctx: ReplyContext) => void;
+        before_reset: (_event: unknown, ctx: ReplyContext) => void;
+        gateway_stop: () => void;
         gateway_start: () => Promise<void>;
         message_received: (event: {
             content: string;
@@ -60,16 +78,8 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
             };
             reason?: string;
         } | undefined>;
-        before_tool_call: (event: PluginHookBeforeToolCallEvent, ctx: {
-            sessionKey?: string;
-            runId?: string;
-            workspaceDir?: string;
-        }) => PluginHookBeforeToolCallResult | undefined;
-        after_tool_call: (event: PluginHookAfterToolCallEvent, ctx: {
-            sessionKey?: string;
-            runId?: string;
-            workspaceDir?: string;
-        }) => void;
+        before_tool_call: (event: PluginHookBeforeToolCallEvent, ctx: ReplyContext) => PluginHookBeforeToolCallResult | undefined | Promise<PluginHookBeforeToolCallResult | undefined>;
+        after_tool_call: (event: PluginHookAfterToolCallEvent, ctx: ReplyContext) => void;
         llm_output: (event: {
             assistantTexts: string[];
             runId: string;
@@ -87,9 +97,7 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
         session_end: (_event: PluginHookSessionEndEvent, ctx: {
             sessionKey?: string;
         }) => void;
-        before_message_write: (event: PluginHookBeforeMessageWriteEvent, ctx: {
-            sessionKey?: string;
-        }) => {
+        before_message_write: (event: PluginHookBeforeMessageWriteEvent, ctx: ReplyContext) => {
             message: never;
         } | undefined;
     };

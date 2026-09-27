@@ -63,6 +63,8 @@ export type PluginHookBeforePromptBuildResult = {
 export type PluginHookBeforeToolCallEvent = {
   toolName: string;
   params?: Record<string, unknown>;
+  toolCallId?: string;
+  runId?: string;
 };
 
 export type PluginHookBeforeToolCallResult = {

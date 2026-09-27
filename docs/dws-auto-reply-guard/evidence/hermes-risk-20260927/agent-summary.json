@@ -1,0 +1,109 @@
+{
+  "hermes_commit": "fcbd1076a93841fa88855acce810e342a5b78101",
+  "mode": "agent",
+  "aegis_commit": "7137092b39c0ddb55ee9a956cd463f6807439427",
+  "aegis_settings": {},
+  "aegis_loaded": true,
+  "aegis_worker_alive": true,
+  "existing_guard_negative_control_blocked": true,
+  "approval_mode": "manual",
+  "approval_bypass": false,
+  "env_scrub_check": {
+    "model_key_removed": true,
+    "dws_config_pointer_retained": true
+  },
+  "model_requests": 3,
+  "script_model_requests": 0,
+  "model_is_deterministic_fixture": true,
+  "dws_is_synthetic": true,
+  "real_dingtalk_messages_sent": 0,
+  "guard_probes": [
+    {
+      "dangerous_pattern": false,
+      "approved": true,
+      "user_approved": false
+    },
+    {
+      "dangerous_pattern": false,
+      "approved": true,
+      "user_approved": false
+    },
+    {
+      "dangerous_pattern": false,
+      "approved": true,
+      "user_approved": false
+    }
+  ],
+  "synthetic_sends": [
+    {
+      "target": "source-fixture",
+      "body": "MODEL_REPLY_FOR_EXTERNAL_MESSAGE_CANARY_42"
+    }
+  ],
+  "events": [
+    {
+      "hook": "pre_llm_call",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "pre_tool_call",
+      "tool_name": "terminal",
+      "tool_call_id": "probe-call-1",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "api_request_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352:api:1",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "transform_tool_result",
+      "tool_name": "terminal",
+      "status": "ok",
+      "tool_call_id": "probe-call-1",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "api_request_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352:api:1",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "post_tool_call",
+      "tool_name": "terminal",
+      "status": "ok",
+      "tool_call_id": "probe-call-1",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "api_request_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352:api:1",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "pre_tool_call",
+      "tool_name": "terminal",
+      "tool_call_id": "probe-call-2",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "api_request_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352:api:2",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "transform_tool_result",
+      "tool_name": "terminal",
+      "status": "ok",
+      "tool_call_id": "probe-call-2",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "api_request_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352:api:2",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "post_tool_call",
+      "tool_name": "terminal",
+      "status": "ok",
+      "tool_call_id": "probe-call-2",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "api_request_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352:api:2",
+      "session_id": "dws-risk-agent"
+    },
+    {
+      "hook": "on_session_end",
+      "turn_id": "dws-risk-agent:f73b55f3-6bae-498e-b77a-ba7f1e0f600a:36b19352",
+      "session_id": "dws-risk-agent"
+    }
+  ],
+  "passed": true,
+  "aegis_worker_reaped": true
+}

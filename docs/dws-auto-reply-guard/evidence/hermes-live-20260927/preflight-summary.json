@@ -1,0 +1,13 @@
+{
+  "version": "dws version v1.0.58 (1b06d010, 2026-08-13T11:46:39Z)",
+  "authenticated": true,
+  "token_valid": true,
+  "self_query_success": true,
+  "self_user_id": null,
+  "self_name": null,
+  "cwd": "/private/tmp/hermes-dws-live-20260927/preflight-1790502419036609000/workspace",
+  "home_matches_real": true,
+  "hermes_home_is_disposable": true,
+  "model_secret_env_present": [],
+  "messages_sent": 0
+}

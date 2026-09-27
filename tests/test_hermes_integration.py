@@ -382,8 +382,10 @@ def test_discover_packaged_runtime_requires_opt_in(loaded, monkeypatch):
     for name in ("plugin.yaml", "__init__.py", "hermes_adapter.py", "openclaw.plugin.json", "package.json"):
         shutil.copy2(ROOT / name, installed / name)
     (installed / "src").mkdir()
-    for file in (ROOT / "src").glob("*.js"):
-        shutil.copy2(file, installed / "src" / file.name)
+    for file in (ROOT / "src").rglob("*.js"):
+        destination = installed / "src" / file.relative_to(ROOT / "src")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(file, destination)
     monkeypatch.setattr(plugins, "get_bundled_plugins_dir", lambda: home / "no-bundled-plugins")
     (home / "config.yaml").write_text("plugins:\n  enabled: []\n", encoding="utf-8")
     manager = PluginManager()

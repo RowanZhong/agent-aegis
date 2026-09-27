@@ -1,0 +1,22 @@
+[
+  {
+    "session_id": "20260927_175248_d019f7",
+    "model": "claude-sonnet-5",
+    "billing_provider": "anthropic",
+    "billing_base_url": "https://api.anthropic.com",
+    "billing_mode": "",
+    "task": "",
+    "api_call_count": 4,
+    "input_tokens": 8,
+    "output_tokens": 3546,
+    "cache_read_tokens": 21029,
+    "cache_write_tokens": 10847,
+    "reasoning_tokens": 0,
+    "estimated_cost_usd": 0.0667993,
+    "actual_cost_usd": 0.0,
+    "cost_status": "estimated",
+    "cost_source": "official_docs_snapshot",
+    "first_seen": 1790502799.225847,
+    "last_seen": 1790502825.668272
+  }
+]

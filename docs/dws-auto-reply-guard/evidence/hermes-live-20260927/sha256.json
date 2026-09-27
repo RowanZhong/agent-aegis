@@ -1,0 +1,37 @@
+{
+  "artifacts": {
+    "agent-events.json": "e5684a354d0b5138179cdfc4834a703c23a332f015238d8bbd004303f5fcdc55",
+    "agent-model-usage.json": "ae39014fcce81c83bad2f6638e4776ba45eaf521d50e8e830515f01b9734d2e6",
+    "agent-receipts.json": "e649a6b5ce94a97bc13bc13ce177cce6e20f9fbf583f4b2828e77a8e33c00088",
+    "agent-request.txt": "2fa6ad9c120813060bcb2cc08b82ab674eb1514baf727a18fb1c4e3bc87b5fc1",
+    "agent-transcript.json": "e3b72c68fd59d05b5034d8323ac633db00fed1c8eff16ad9aad40b16d25c0a61",
+    "preflight-summary.json": "1007f783968e842c90cfcebd479a3f8703db5194d318fe9de9aa7c5ac3422ce1",
+    "script-attempt-events.json": "cca18f76deac0194c9a8377f754eb0a9e1f1e61807b8267146c065a8f6844c3e",
+    "script-attempt-request.txt": "f00b302645132ebd457d33d60d7d05491072679409c694e470c58cbf426a399a",
+    "script-model-preflight.py": "164fce754caa670688a9cee0012485ea3b35c4ebdae2160fa7cc2d6acf7bd6e7",
+    "script-refusal.txt": "52abcca7488fa4ba4a054dc76f9dc44996abb34612942142b839bb1dbf453e4f",
+    "summary.json": "861e0406e5c6855c5a58be453b4134c070240ac60100b14a24c382b2a2b0f125"
+  },
+  "raw_local_evidence": {
+    "launcher": {
+      "path": "/private/tmp/hermes-dws-live-20260927/launch.py",
+      "sha256": "ab39a93b498741dfb9cad41260d97144896b9da2c0cbdfc319d3cafdff9da019"
+    },
+    "native_events": {
+      "path": "/private/tmp/hermes-dws-live-20260927/agent-1790502768395164000/events.jsonl",
+      "sha256": "0bfbaba1f56effa3f379efce8e2ffca5a519c15761d3fe42c676897300d428fc"
+    },
+    "native_query": {
+      "path": "/private/tmp/hermes-dws-live-20260927/agent-1790502768395164000/query.txt",
+      "sha256": "371c7f43834599a3e2310fd2884ae88cf76fcdbccbea046f7856181eaf4da695"
+    },
+    "native_cli_output": {
+      "path": "/private/tmp/hermes-dws-live-20260927/agent-1790502768395164000/cli-output.txt",
+      "sha256": "2d55df5db2565bf01f8fd8781786ff41b843030a274fe807984310f911c5ae47"
+    },
+    "native_profile_config": {
+      "path": "/private/tmp/hermes-dws-live-20260927/agent-1790502768395164000/profile/config.yaml",
+      "sha256": "5fd9393d14d6a6a10d3d0d32dfe2052d33aaf8174fb895693b78ab819038ab43"
+    }
+  }
+}

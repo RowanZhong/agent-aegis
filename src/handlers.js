@@ -8,6 +8,7 @@ import { TOOL_CALL_DEFENSE_STRATEGIES, } from "./security-strategies.js";
 import { SkillScanService } from "./scan-service.js";
 import { ClawAegisState } from "./state.js";
 import { ToolResultAlertTracker } from "./alert-tracker.js";
+import { DwsReplyGuard, openclawTranscriptCompatible } from "./dws-reply-guard/index.js";
 const SELF_INTEGRITY_FILES = [
     "index.ts",
     "runtime-api.ts",
@@ -298,6 +299,25 @@ export function createClawAegisRuntime(api, options) {
     const config = resolveClawAegisPluginConfig(api);
     const skillScanRoots = options?.skillScanRoots ?? resolveSkillScanRoots(api);
     const state = new ClawAegisState({ stateDir, logger, now: options?.now });
+    const dwsReplyGuard = new DwsReplyGuard({ mode: config.dwsReplyGuardMode, now,
+        prompt: session => state.peekPromptSnapshot(session)?.prompt,
+        openclawContext: agentId => openclawTranscriptCompatible(api.config, agentId),
+        audit: event => {
+            // Never reuse the original-tool audit payload: this strategy logs metadata only.
+            const { rule, result, reason, durationMs, ...details } = event;
+            if (result !== "skipped")
+                emitDefenseEvent({ timestamp: now(), defense: rule, result,
+                    reason, details: { ...details, durationMs } });
+            (result === "blocked" ? logger.warn : logger.debug)?.("claw-aegis: DWS 回复检查", {
+                event: "dws_reply_guard", rule, result, reason, durationMs, ...details,
+            });
+        },
+    });
+    // Failure in optional observation must not skip existing redaction/cleanup.
+    const observeDws = (observe) => { try {
+        observe();
+    }
+    catch { /* local abstention */ } };
     const emitSkillScanEvent = createSkillScanEventWriter(stateDir);
     const scanService = new SkillScanService({
         state,
@@ -318,10 +338,23 @@ export function createClawAegisRuntime(api, options) {
     warnIfPromptHooksDisabled(api);
     return {
         state,
+        dwsReplyGuard,
         scanService,
         staticSystemContext,
         hooks: {
+            before_model_resolve: (event, ctx) => {
+                dwsReplyGuard.begin(event.prompt, ctx);
+            },
+            before_agent_run: (event, ctx) => {
+                dwsReplyGuard.owner(event.senderIsOwner, ctx);
+            },
+            model_call_started: (event, ctx) => dwsReplyGuard.model(event, ctx),
+            model_call_ended: (event, ctx) => dwsReplyGuard.model(event, ctx, true),
+            before_compaction: (_event, ctx) => dwsReplyGuard.invalidate(ctx),
+            before_reset: (_event, ctx) => dwsReplyGuard.invalidate(ctx),
+            gateway_stop: () => dwsReplyGuard.clear(),
             gateway_start: async () => {
+                await dwsReplyGuard.ready();
                 logger.info("claw-aegis: 网关启动", {
                     event: "gateway_start",
                 });
@@ -977,7 +1010,7 @@ export function createClawAegisRuntime(api, options) {
                         result: "disabled",
                         durationMs,
                     });
-                    return undefined;
+                    return dwsReplyGuard.before({ ...event, toolName: normalizedToolName }, ctx);
                 }
                 const baseDir = ctx.workspaceDir ?? process.cwd();
                 const protectedRoots = isDefenseEnabled(selfProtectionMode) ? state.getProtectedRoots() : [];
@@ -1161,9 +1194,10 @@ export function createClawAegisRuntime(api, options) {
                     result: "allowed",
                     durationMs: totalDurationMs,
                 });
-                return undefined;
+                return dwsReplyGuard.before({ ...event, toolName: normalizedToolName }, ctx);
             },
             after_tool_call: (event, ctx) => {
+                observeDws(() => dwsReplyGuard.result(event.result, event.error, ctx));
                 const sessionKey = ctx.sessionKey?.trim();
                 const runId = ctx.runId?.trim();
                 const normalizedToolName = normalizeToolName(event.toolName);
@@ -1254,6 +1288,7 @@ export function createClawAegisRuntime(api, options) {
                 }
             },
             agent_end: (_event, ctx) => {
+                observeDws(() => dwsReplyGuard.end(ctx));
                 const sessionKey = ctx.sessionKey?.trim();
                 const runId = ctx.runId?.trim();
                 if (runId) {
@@ -1274,6 +1309,7 @@ export function createClawAegisRuntime(api, options) {
                 }
             },
             session_end: (_event, ctx) => {
+                observeDws(() => dwsReplyGuard.end(ctx, true));
                 const sessionKey = ctx.sessionKey?.trim();
                 if (!sessionKey) {
                     return;
@@ -1287,239 +1323,244 @@ export function createClawAegisRuntime(api, options) {
                 });
             },
             before_message_write: (event, ctx) => {
-                const startedAt = now();
-                const sessionKey = ctx.sessionKey?.trim();
-                const message = event.message;
-                if (message.role === "assistant") {
-                    logDefenseStart(logger, {
-                        hook: "before_message_write",
-                        mechanism: "output_redaction",
-                        sessionKey,
-                    });
-                    if (!config.outputRedactionEnabled) {
+                const review = () => {
+                    const startedAt = now();
+                    const sessionKey = ctx.sessionKey?.trim();
+                    const message = event.message;
+                    if (message.role === "assistant") {
+                        logDefenseStart(logger, {
+                            hook: "before_message_write",
+                            mechanism: "output_redaction",
+                            sessionKey,
+                        });
+                        if (!config.outputRedactionEnabled) {
+                            const durationMs = now() - startedAt;
+                            logDefenseResult(logger, {
+                                hook: "before_message_write",
+                                mechanism: "output_redaction",
+                                sessionKey,
+                                result: "disabled",
+                                durationMs,
+                            });
+                            logDefenseFinish(logger, {
+                                hook: "before_message_write",
+                                mechanism: "output_redaction",
+                                sessionKey,
+                                result: "disabled",
+                                durationMs,
+                            });
+                            return undefined;
+                        }
+                        const observedSecrets = sessionKey ? state.peekObservedSecrets(sessionKey) : [];
+                        const sanitized = sanitizeAssistantMessage(message, { observedSecrets });
                         const durationMs = now() - startedAt;
+                        if (sanitized.changed) {
+                            emitDefenseEvent({
+                                timestamp: now(),
+                                defense: "output_redaction",
+                                result: "observed",
+                                reason: `脱敏 assistant 输出 ${sanitized.redactionCount} 处`,
+                                details: { redactionCount: sanitized.redactionCount, matchedKeywords: sanitized.matchedKeywords },
+                            });
+                            logger.warn("claw-aegis: 已脱敏 assistant 输出中的敏感内容", {
+                                event: "assistant_output_redacted",
+                                hook: "before_message_write",
+                                sessionKey,
+                                redactionCount: sanitized.redactionCount,
+                                matchedKeywords: sanitized.matchedKeywords,
+                                durationMs,
+                            });
+                        }
                         logDefenseResult(logger, {
                             hook: "before_message_write",
                             mechanism: "output_redaction",
+                            sessionKey,
+                            result: sanitized.changed ? "redacted" : "clear",
+                            durationMs,
+                            redactionCount: sanitized.redactionCount,
+                        });
+                        logDefenseFinish(logger, {
+                            hook: "before_message_write",
+                            mechanism: "output_redaction",
+                            sessionKey,
+                            result: sanitized.changed ? "redacted" : "clear",
+                            durationMs,
+                            redactionCount: sanitized.redactionCount,
+                        });
+                        return sanitized.changed ? { message: sanitized.message } : undefined;
+                    }
+                    logDefenseStart(logger, {
+                        hook: "before_message_write",
+                        mechanism: "tool_result_scan",
+                        sessionKey,
+                    });
+                    if (!config.toolResultScanEnabled) {
+                        const durationMs = now() - startedAt;
+                        logDefenseResult(logger, {
+                            hook: "before_message_write",
+                            mechanism: "tool_result_scan",
                             sessionKey,
                             result: "disabled",
                             durationMs,
                         });
                         logDefenseFinish(logger, {
                             hook: "before_message_write",
-                            mechanism: "output_redaction",
+                            mechanism: "tool_result_scan",
                             sessionKey,
                             result: "disabled",
                             durationMs,
                         });
                         return undefined;
                     }
-                    const observedSecrets = sessionKey ? state.peekObservedSecrets(sessionKey) : [];
-                    const sanitized = sanitizeAssistantMessage(message, { observedSecrets });
-                    const durationMs = now() - startedAt;
-                    if (sanitized.changed) {
-                        emitDefenseEvent({
-                            timestamp: now(),
-                            defense: "output_redaction",
-                            result: "observed",
-                            reason: `脱敏 assistant 输出 ${sanitized.redactionCount} 处`,
-                            details: { redactionCount: sanitized.redactionCount, matchedKeywords: sanitized.matchedKeywords },
-                        });
-                        logger.warn("claw-aegis: 已脱敏 assistant 输出中的敏感内容", {
-                            event: "assistant_output_redacted",
+                    if (!sessionKey || message.role !== "toolResult") {
+                        const durationMs = now() - startedAt;
+                        logDefenseResult(logger, {
                             hook: "before_message_write",
+                            mechanism: "tool_result_scan",
                             sessionKey,
-                            redactionCount: sanitized.redactionCount,
-                            matchedKeywords: sanitized.matchedKeywords,
+                            result: !sessionKey ? "skipped_missing_session" : "skipped_non_tool_result",
                             durationMs,
                         });
-                    }
-                    logDefenseResult(logger, {
-                        hook: "before_message_write",
-                        mechanism: "output_redaction",
-                        sessionKey,
-                        result: sanitized.changed ? "redacted" : "clear",
-                        durationMs,
-                        redactionCount: sanitized.redactionCount,
-                    });
-                    logDefenseFinish(logger, {
-                        hook: "before_message_write",
-                        mechanism: "output_redaction",
-                        sessionKey,
-                        result: sanitized.changed ? "redacted" : "clear",
-                        durationMs,
-                        redactionCount: sanitized.redactionCount,
-                    });
-                    return sanitized.changed ? { message: sanitized.message } : undefined;
-                }
-                logDefenseStart(logger, {
-                    hook: "before_message_write",
-                    mechanism: "tool_result_scan",
-                    sessionKey,
-                });
-                if (!config.toolResultScanEnabled) {
-                    const durationMs = now() - startedAt;
-                    logDefenseResult(logger, {
-                        hook: "before_message_write",
-                        mechanism: "tool_result_scan",
-                        sessionKey,
-                        result: "disabled",
-                        durationMs,
-                    });
-                    logDefenseFinish(logger, {
-                        hook: "before_message_write",
-                        mechanism: "tool_result_scan",
-                        sessionKey,
-                        result: "disabled",
-                        durationMs,
-                    });
-                    return undefined;
-                }
-                if (!sessionKey || message.role !== "toolResult") {
-                    const durationMs = now() - startedAt;
-                    logDefenseResult(logger, {
-                        hook: "before_message_write",
-                        mechanism: "tool_result_scan",
-                        sessionKey,
-                        result: !sessionKey ? "skipped_missing_session" : "skipped_non_tool_result",
-                        durationMs,
-                    });
-                    logDefenseFinish(logger, {
-                        hook: "before_message_write",
-                        mechanism: "tool_result_scan",
-                        sessionKey,
-                        result: !sessionKey ? "skipped_missing_session" : "skipped_non_tool_result",
-                        durationMs,
-                    });
-                    return undefined;
-                }
-                try {
-                    const thirdPartyWebContent = isThirdPartyWebToolResultMessage(message);
-                    const toolName = typeof message.toolName === "string" ? message.toolName : undefined;
-                    const rawExtracted = collectToolResultScanText(message);
-                    if (thirdPartyWebContent) {
-                        logger.info("claw-aegis: 开始处理第三方网页内容", {
-                            event: "third_party_web_content_processing_started",
+                        logDefenseFinish(logger, {
                             hook: "before_message_write",
+                            mechanism: "tool_result_scan",
                             sessionKey,
-                            toolName,
-                            contentCharsBefore: rawExtracted?.text.length ?? 0,
-                            oversizeBefore: rawExtracted?.oversize ?? false,
+                            result: !sessionKey ? "skipped_missing_session" : "skipped_non_tool_result",
+                            durationMs,
                         });
+                        return undefined;
                     }
-                    const sanitized = sanitizeToolResultMessage(message);
-                    const extracted = collectToolResultScanText(sanitized.message);
-                    const observedSecrets = collectSensitiveOutputValues(extracted.text);
-                    if (observedSecrets.length > 0) {
-                        state.noteObservedSecrets(sessionKey, observedSecrets);
-                    }
-                    if (thirdPartyWebContent || sanitized.externalContent) {
-                        logger.info("claw-aegis: 完成处理第三方网页内容", {
-                            event: "third_party_web_content_processing_finished",
+                    try {
+                        const thirdPartyWebContent = isThirdPartyWebToolResultMessage(message);
+                        const toolName = typeof message.toolName === "string" ? message.toolName : undefined;
+                        const rawExtracted = collectToolResultScanText(message);
+                        if (thirdPartyWebContent) {
+                            logger.info("claw-aegis: 开始处理第三方网页内容", {
+                                event: "third_party_web_content_processing_started",
+                                hook: "before_message_write",
+                                sessionKey,
+                                toolName,
+                                contentCharsBefore: rawExtracted?.text.length ?? 0,
+                                oversizeBefore: rawExtracted?.oversize ?? false,
+                            });
+                        }
+                        const sanitized = sanitizeToolResultMessage(message);
+                        const extracted = collectToolResultScanText(sanitized.message);
+                        const observedSecrets = collectSensitiveOutputValues(extracted.text);
+                        if (observedSecrets.length > 0) {
+                            state.noteObservedSecrets(sessionKey, observedSecrets);
+                        }
+                        if (thirdPartyWebContent || sanitized.externalContent) {
+                            logger.info("claw-aegis: 完成处理第三方网页内容", {
+                                event: "third_party_web_content_processing_finished",
+                                hook: "before_message_write",
+                                sessionKey,
+                                toolName,
+                                contentCharsBefore: rawExtracted?.text.length ?? 0,
+                                contentCharsAfter: extracted.text.length,
+                                oversizeBefore: rawExtracted?.oversize ?? false,
+                                oversizeAfter: extracted.oversize,
+                                specialTokensRemoved: sanitized.removedTokenCount,
+                                markerInjected: sanitized.markerInjected,
+                                rewritten: sanitized.changed,
+                            });
+                        }
+                        const outcome = scanToolResultText(extracted.text, extracted.oversize);
+                        state.noteToolResult(sessionKey, outcome);
+                        const encodedRiskFlags = outcome.riskFlags.filter((flag) => flag.startsWith("encoded-"));
+                        if (encodedRiskFlags.length > 0) {
+                            state.noteRuntimeRisk(sessionKey, encodedRiskFlags);
+                        }
+                        const durationMs = now() - startedAt;
+                        const logMeta = {
+                            event: "tool_result_reviewed",
                             hook: "before_message_write",
                             sessionKey,
-                            toolName,
-                            contentCharsBefore: rawExtracted?.text.length ?? 0,
-                            contentCharsAfter: extracted.text.length,
-                            oversizeBefore: rawExtracted?.oversize ?? false,
-                            oversizeAfter: extracted.oversize,
+                            suspicious: outcome.suspicious,
+                            oversize: outcome.oversize,
+                            flags: outcome.riskFlags,
+                            externalContent: sanitized.externalContent,
                             specialTokensRemoved: sanitized.removedTokenCount,
                             markerInjected: sanitized.markerInjected,
                             rewritten: sanitized.changed,
-                        });
-                    }
-                    const outcome = scanToolResultText(extracted.text, extracted.oversize);
-                    state.noteToolResult(sessionKey, outcome);
-                    const encodedRiskFlags = outcome.riskFlags.filter((flag) => flag.startsWith("encoded-"));
-                    if (encodedRiskFlags.length > 0) {
-                        state.noteRuntimeRisk(sessionKey, encodedRiskFlags);
-                    }
-                    const durationMs = now() - startedAt;
-                    const logMeta = {
-                        event: "tool_result_reviewed",
-                        hook: "before_message_write",
-                        sessionKey,
-                        suspicious: outcome.suspicious,
-                        oversize: outcome.oversize,
-                        flags: outcome.riskFlags,
-                        externalContent: sanitized.externalContent,
-                        specialTokensRemoved: sanitized.removedTokenCount,
-                        markerInjected: sanitized.markerInjected,
-                        rewritten: sanitized.changed,
-                        durationMs,
-                    };
-                    if (outcome.suspicious ||
-                        outcome.oversize ||
-                        outcome.riskFlags.length > 0 ||
-                        sanitized.removedTokenCount > 0) {
-                        // A lone vocabulary hit is informational, not an established attack.
-                        // Detection, prompt state, redaction and all enforcement stay unchanged.
-                        const level = !outcome.suspicious && !outcome.oversize &&
-                            sanitized.removedTokenCount === 0 && observedSecrets.length === 0 &&
-                            outcome.riskFlags.length === 1 && outcome.riskFlags[0] === "secret-request"
-                            ? "info" : "warn";
-                        // Incomplete scans cannot establish identical content; do not fold them.
-                        const occurrence = rawExtracted.oversize || outcome.oversize ? undefined
-                            : resultAlerts.record(sessionKey, createHash("sha256").update(JSON.stringify([
-                                rawExtracted.text, [...outcome.riskFlags].sort(), outcome.suspicious,
-                                sanitized.removedTokenCount, sanitized.externalContent,
-                            ])).digest("hex"), level, toolName);
-                        emitDefenseEvent({
-                            timestamp: now(),
-                            defense: "tool_result_scan",
-                            result: "observed",
-                            toolName: typeof message.toolName === "string" ? message.toolName : undefined,
-                            reason: `${level === "info" ? "弱关键词命中" : "风险标记"}: ${outcome.riskFlags.join(", ") || "suspicious/oversize"}`,
-                            details: { flags: outcome.riskFlags, suspicious: outcome.suspicious,
-                                oversize: outcome.oversize, level, ...occurrence },
-                        });
-                        const alertMeta = { ...logMeta, level, ...occurrence };
-                        if (!occurrence || occurrence.occurrenceCount === 1) {
-                            logger[level]("claw-aegis: 已完成工具结果审查", alertMeta);
-                        }
-                        else {
-                            logger.debug?.("claw-aegis: 重复工具结果告警已合并", alertMeta);
-                        }
-                    }
-                    else {
-                        logger.debug?.("claw-aegis: 已完成工具结果审查", logMeta);
-                    }
-                    logDefenseFinish(logger, {
-                        hook: "before_message_write",
-                        mechanism: "tool_result_scan",
-                        sessionKey,
-                        result: outcome.suspicious ||
+                            durationMs,
+                        };
+                        if (outcome.suspicious ||
                             outcome.oversize ||
                             outcome.riskFlags.length > 0 ||
-                            sanitized.removedTokenCount > 0
-                            ? "risk_detected"
-                            : "clear",
-                        durationMs,
-                        flagCount: outcome.riskFlags.length,
-                        specialTokensRemoved: sanitized.removedTokenCount,
-                        markerInjected: sanitized.markerInjected,
-                    });
-                    return sanitized.changed ? { message: sanitized.message } : undefined;
-                }
-                catch (error) {
-                    state.markToolResultSeen(sessionKey);
-                    const durationMs = now() - startedAt;
-                    logger.error("claw-aegis: 工具结果扫描已降级", {
-                        event: "tool_result_scan_failed",
-                        hook: "before_message_write",
-                        sessionKey,
-                        reason: error instanceof Error ? error.message : String(error),
-                        durationMs,
-                    });
-                    logDefenseFinish(logger, {
-                        hook: "before_message_write",
-                        mechanism: "tool_result_scan",
-                        sessionKey,
-                        result: "degraded",
-                        durationMs,
-                    });
-                }
-                return undefined;
+                            sanitized.removedTokenCount > 0) {
+                            // A lone vocabulary hit is informational, not an established attack.
+                            // Detection, prompt state, redaction and all enforcement stay unchanged.
+                            const level = !outcome.suspicious && !outcome.oversize &&
+                                sanitized.removedTokenCount === 0 && observedSecrets.length === 0 &&
+                                outcome.riskFlags.length === 1 && outcome.riskFlags[0] === "secret-request"
+                                ? "info" : "warn";
+                            // Incomplete scans cannot establish identical content; do not fold them.
+                            const occurrence = rawExtracted.oversize || outcome.oversize ? undefined
+                                : resultAlerts.record(sessionKey, createHash("sha256").update(JSON.stringify([
+                                    rawExtracted.text, [...outcome.riskFlags].sort(), outcome.suspicious,
+                                    sanitized.removedTokenCount, sanitized.externalContent,
+                                ])).digest("hex"), level, toolName);
+                            emitDefenseEvent({
+                                timestamp: now(),
+                                defense: "tool_result_scan",
+                                result: "observed",
+                                toolName: typeof message.toolName === "string" ? message.toolName : undefined,
+                                reason: `${level === "info" ? "弱关键词命中" : "风险标记"}: ${outcome.riskFlags.join(", ") || "suspicious/oversize"}`,
+                                details: { flags: outcome.riskFlags, suspicious: outcome.suspicious,
+                                    oversize: outcome.oversize, level, ...occurrence },
+                            });
+                            const alertMeta = { ...logMeta, level, ...occurrence };
+                            if (!occurrence || occurrence.occurrenceCount === 1) {
+                                logger[level]("claw-aegis: 已完成工具结果审查", alertMeta);
+                            }
+                            else {
+                                logger.debug?.("claw-aegis: 重复工具结果告警已合并", alertMeta);
+                            }
+                        }
+                        else {
+                            logger.debug?.("claw-aegis: 已完成工具结果审查", logMeta);
+                        }
+                        logDefenseFinish(logger, {
+                            hook: "before_message_write",
+                            mechanism: "tool_result_scan",
+                            sessionKey,
+                            result: outcome.suspicious ||
+                                outcome.oversize ||
+                                outcome.riskFlags.length > 0 ||
+                                sanitized.removedTokenCount > 0
+                                ? "risk_detected"
+                                : "clear",
+                            durationMs,
+                            flagCount: outcome.riskFlags.length,
+                            specialTokensRemoved: sanitized.removedTokenCount,
+                            markerInjected: sanitized.markerInjected,
+                        });
+                        return sanitized.changed ? { message: sanitized.message } : undefined;
+                    }
+                    catch (error) {
+                        state.markToolResultSeen(sessionKey);
+                        const durationMs = now() - startedAt;
+                        logger.error("claw-aegis: 工具结果扫描已降级", {
+                            event: "tool_result_scan_failed",
+                            hook: "before_message_write",
+                            sessionKey,
+                            reason: error instanceof Error ? error.message : String(error),
+                            durationMs,
+                        });
+                        logDefenseFinish(logger, {
+                            hook: "before_message_write",
+                            mechanism: "tool_result_scan",
+                            sessionKey,
+                            result: "degraded",
+                            durationMs,
+                        });
+                    }
+                    return undefined;
+                };
+                const result = review();
+                observeDws(() => dwsReplyGuard.transcript(result?.message ?? event.message, ctx));
+                return result;
             },
         },
     };

@@ -56,6 +56,8 @@ export type ClawAegisPluginConfig = {
     toolCallEnforcementEnabled: boolean;
     dispatchGuardEnabled: boolean;
     dispatchGuardMode: DefenseMode;
+    dwsReplyGuardEnabled: boolean;
+    dwsReplyGuardMode: DefenseMode;
     protectedPaths: string[];
     protectedSkills: string[];
     protectedPlugins: string[];
@@ -172,6 +174,14 @@ export declare const clawAegisPluginConfigSchema: {
             readonly enum: readonly ["off", "observe", "enforce"];
             readonly default: "enforce";
         };
+        dwsReplyGuardEnabled: {
+            type: string;
+            default: boolean;
+        };
+        dwsReplyGuardMode: {
+            type: string;
+            enum: ("off" | "observe" | "enforce")[];
+        };
         protectedPaths: {
             type: string;
             items: {
@@ -209,6 +219,14 @@ export declare const clawAegisPluginConfigSchema: {
     };
 };
 export declare const clawAegisPluginUiHints: {
+    dwsReplyGuardEnabled: {
+        label: string;
+        help: string;
+    };
+    dwsReplyGuardMode: {
+        label: string;
+        help: string;
+    };
     allDefensesEnabled: {
         label: string;
         help: string;
@@ -451,6 +469,14 @@ export declare const clawAegisPluginConfigDefinition: {
                 readonly enum: readonly ["off", "observe", "enforce"];
                 readonly default: "enforce";
             };
+            dwsReplyGuardEnabled: {
+                type: string;
+                default: boolean;
+            };
+            dwsReplyGuardMode: {
+                type: string;
+                enum: ("off" | "observe" | "enforce")[];
+            };
             protectedPaths: {
                 type: string;
                 items: {
@@ -488,6 +514,14 @@ export declare const clawAegisPluginConfigDefinition: {
         };
     };
     uiHints: {
+        dwsReplyGuardEnabled: {
+            label: string;
+            help: string;
+        };
+        dwsReplyGuardMode: {
+            label: string;
+            help: string;
+        };
         allDefensesEnabled: {
             label: string;
             help: string;

@@ -24,6 +24,10 @@ export function wrapHookFailOpen(api, hookName, handler) {
 export function registerClawAegisPlugin(api, createRuntime = createClawAegisRuntime) {
     try {
         const runtime = createRuntime(api);
+        for (const name of ["before_model_resolve", "before_agent_run", "model_call_started", "model_call_ended",
+            "before_compaction", "before_reset", "gateway_stop"]) {
+            api.on(name, wrapHookFailOpen(api, name, runtime.hooks[name]));
+        }
         api.on("gateway_start", wrapHookFailOpen(api, "gateway_start", runtime.hooks.gateway_start));
         api.on("message_received", wrapHookFailOpen(api, "message_received", runtime.hooks.message_received));
         api.on("message_sending", wrapHookFailOpen(api, "message_sending", runtime.hooks.message_sending));

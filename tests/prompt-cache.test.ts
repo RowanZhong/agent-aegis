@@ -89,6 +89,19 @@ describe("OpenClaw cache-safe prompt hooks", () => {
     expect(result.message.content[0].text).toContain("[已脱敏]");
   });
 
+  it("keeps existing redaction and cleanup when optional DWS observation fails", async () => {
+    const { runtime } = await fixture({dwsReplyGuardEnabled:true});
+    vi.spyOn(runtime.dwsReplyGuard,"transcript").mockImplementation(()=>{throw new Error("optional observer");});
+    const secret="sk-"+"A1b2C3d4E5f6G7h8I9j0".repeat(2);
+    const result=runtime.hooks.before_message_write({message:{role:"assistant",content:[{type:"text",text:`API key: ${secret}`}]}},{sessionKey:"a"});
+    expect(result?.message).toBeTruthy();
+    expect(JSON.stringify(result)).not.toContain(secret);
+    runtime.state.notePromptSnapshot("a","ordinary request");
+    vi.spyOn(runtime.dwsReplyGuard,"end").mockImplementation(()=>{throw new Error("optional cleanup");});
+    runtime.hooks.session_end({}, {sessionKey:"a"});
+    expect(runtime.state.peekPromptSnapshot("a")).toBeUndefined();
+  });
+
   it("preserves fail-open behavior for synchronous errors and async rejections", async () => {
     const { api } = await fixture();
     const sync = wrapHookFailOpen(api, "before_message_write", () => { throw new Error("sync"); });

@@ -7,6 +7,7 @@ Hooks are serialized across Hermes worker threads to preserve request ordering.
 from __future__ import annotations
 
 import atexit
+import hashlib
 import json
 import logging
 import math
@@ -21,6 +22,56 @@ LOG = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 UNAVAILABLE = "[AgentAegis] Security engine unavailable; tool execution is blocked. Restart Hermes after fixing the plugin."
+
+
+def _dws_source_fingerprints(value: Any) -> list[str]:
+    """Summarize source rows actually present in a transported tool result.
+
+    Content is transient and bounded. A retained tool ID alone is insufficient
+    because Hermes compression can replace its body with a placeholder.
+    """
+    try:
+        for _ in range(4):
+            if isinstance(value, str):
+                if len(value.encode("utf-8")) > 65536:
+                    return []
+                # Hermes may append Aegis review text after the original JSON.
+                value, _end = json.JSONDecoder().raw_decode(value.lstrip())
+                continue
+            if isinstance(value, list):
+                if len(value) != 1 or value[0].get("type") != "text":
+                    return []
+                value = value[0].get("text")
+                continue
+            if not isinstance(value, dict) or value.get("error") or value.get("success") is False:
+                return []
+            if "exit_code" in value:
+                if value["exit_code"] != 0:
+                    return []
+                value = value.get("output")
+                continue
+            break
+        if not isinstance(value, dict) or value.get("success") is not True:
+            return []
+        rows = value.get("messages")
+        if not isinstance(rows, list) or len(rows) > 32:
+            return []
+        fingerprints = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            keys = [row.get("messageId"), row.get("conversationId"),
+                    row.get("senderOpenDingTalkId"), row.get("senderUserId"), row.get("text")]
+            if not all(isinstance(keys[i], str) and keys[i] for i in (0, 1, 4)):
+                continue
+            if any(v is not None and (not isinstance(v, str) or len(v) > 256) for v in keys[:4]):
+                continue
+            encoded = json.dumps(keys, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            if len(encoded) <= 65536:
+                fingerprints.append(hashlib.sha256(encoded).hexdigest())
+        return fingerprints
+    except (ValueError, TypeError, AttributeError):
+        return []
 
 
 class BridgeError(RuntimeError):
@@ -141,18 +192,83 @@ class NodeBridge:
 
 
 class HermesAegis:
-    def __init__(self, bridge: NodeBridge):
+    def __init__(self, bridge: NodeBridge, reply_enabled: bool = False):
         self.bridge = bridge
+        self.reply_enabled = reply_enabled
         self.turns: dict[str, str] = {}
         self.lock = threading.RLock()
 
     def hook(self, method: str, **kwargs: Any) -> Any:
+        if method in {"pre_api_request", "post_api_request"} and not self.reply_enabled:
+            return None
         with self.lock:
             try:
                 payload = {key: kwargs[key] for key in (
                     "session_id", "task_id", "turn_id", "user_message", "tool_name", "args",
                     "result", "status", "error_message", "duration_ms", "response_text", "model",
+                    "tool_call_id", "api_request_id", "platform", "sender_id", "parent_session_id",
                 ) if key in kwargs}
+                if method in {"pre_api_request", "post_api_request"}:
+                    payload = {key: payload[key] for key in (
+                        "session_id", "task_id", "turn_id", "api_request_id",
+                    ) if key in payload}
+                if method == "pre_api_request":
+                    # Summarize actual transport messages, not pre_llm_call counts.
+                    # Do not ship prompts/provider credentials or raw request objects.
+                    messages = kwargs.get("request_messages")
+                    ids = []
+                    fingerprints = {}
+                    total_bytes = 0
+                    def remember(tool_id, content):
+                        nonlocal total_bytes
+                        if not isinstance(tool_id, str) or not tool_id or len(tool_id) > 512:
+                            return False
+                        ids.append(tool_id)
+                        if isinstance(content, str) and len(content)<=65536:
+                            total_bytes += len(content.encode("utf-8"))
+                        elif isinstance(content, str):
+                            return False
+                        else:
+                            # Unknown structured content cannot establish this edge.
+                            return True
+                        if total_bytes > 65536:
+                            return False
+                        fingerprints[tool_id] = _dws_source_fingerprints(content)
+                        return True
+                    complete = isinstance(messages, list) and len(messages) <= 128
+                    if complete:
+                        for message in messages:
+                            if not complete:
+                                break
+                            if not isinstance(message, dict):
+                                complete = False
+                                break
+                            if message.get("role") == "tool":
+                                complete = remember(message.get("tool_call_id"), message.get("content")) and complete
+                            elif message.get("type") == "function_call_output":
+                                complete = remember(message.get("call_id"), message.get("output")) and complete
+                            content = message.get("content")
+                            if isinstance(content, list):
+                                if len(content) > 128:
+                                    complete = False
+                                    break
+                                for block in content:
+                                    if not complete:
+                                        break
+                                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                                        complete = remember(block.get("tool_use_id"), block.get("content")) and complete
+                    complete = complete and len(ids) <= 128 and all(isinstance(x, str) and x for x in ids)
+                    payload.update(tool_result_ids=ids if complete else [],
+                                   tool_result_fingerprints=fingerprints if complete else {},
+                                   retry_count=kwargs.get("retry_count"), reply_evidence_complete=complete)
+                elif method == "post_api_request":
+                    message = kwargs.get("assistant_message")
+                    calls = message.get("tool_calls") if isinstance(message, dict) else getattr(message, "tool_calls", None)
+                    calls = calls or []
+                    complete = isinstance(calls, list) and len(calls) <= 32
+                    ids = [(c.get("id") if isinstance(c, dict) else getattr(c, "id", None)) for c in calls] if complete else []
+                    complete = complete and all(isinstance(x, str) and x for x in ids)
+                    payload.update(tool_call_ids=ids if complete else [], reply_evidence_complete=complete)
                 if isinstance(payload.get("user_message"), list):
                     payload["user_message"] = "\n".join(
                         block if isinstance(block, str) else block.get("text", "")
@@ -222,11 +338,16 @@ def _register(ctx) -> None:
     ctx.on_unload(bridge.close)
     atexit.register(bridge.close)
     ctx.on_unload(lambda: atexit.unregister(bridge.close))
-    adapter = HermesAegis(bridge)
+    reply_mode = config.get("dwsReplyGuardMode")
+    if reply_mode not in ("off", "observe", "enforce"):
+        reply_mode = config.get("defaultBlockingMode", "enforce")
+    adapter = HermesAegis(bridge, reply_enabled=config.get("dwsReplyGuardEnabled") is True
+                         and reply_mode != "off")
     # Install guards even if startup fails: Hermes isolates register exceptions,
     # so throwing here would otherwise leave an enabled agent unprotected.
     for name in ("pre_llm_call", "pre_tool_call", "post_tool_call", "transform_tool_result",
-                 "transform_llm_output", "on_session_end", "on_session_finalize", "on_session_reset"):
+                 "transform_llm_output", "on_session_end", "on_session_finalize", "on_session_reset",
+                 "pre_api_request", "post_api_request"):
         ctx.register_hook(name, lambda _method=name, **kw: adapter.hook(_method, **kw))
     try:
         initialized = bridge.start()

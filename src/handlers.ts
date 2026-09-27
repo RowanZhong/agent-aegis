@@ -67,6 +67,7 @@ import {
 import { SkillScanService } from "./scan-service.js";
 import { ClawAegisState } from "./state.js";
 import { ToolResultAlertTracker } from "./alert-tracker.js";
+import { DwsReplyGuard, openclawTranscriptCompatible, type ReplyContext } from "./dws-reply-guard/index.js";
 import type {
   AegisLogger,
   ScriptArtifactRecord,
@@ -478,6 +479,21 @@ export function createClawAegisRuntime(
   const config = resolveClawAegisPluginConfig(api);
   const skillScanRoots = options?.skillScanRoots ?? resolveSkillScanRoots(api);
   const state = new ClawAegisState({ stateDir, logger, now: options?.now });
+  const dwsReplyGuard = new DwsReplyGuard({ mode: config.dwsReplyGuardMode, now,
+    prompt: session => state.peekPromptSnapshot(session)?.prompt,
+    openclawContext: agentId => openclawTranscriptCompatible(api.config,agentId),
+    audit: event => {
+      // Never reuse the original-tool audit payload: this strategy logs metadata only.
+      const { rule, result, reason, durationMs, ...details } = event;
+      if (result !== "skipped") emitDefenseEvent({ timestamp: now(), defense: rule, result,
+        reason, details: { ...details, durationMs } });
+      (result === "blocked" ? logger.warn : logger.debug)?.("claw-aegis: DWS 回复检查", {
+        event: "dws_reply_guard", rule, result, reason, durationMs, ...details,
+      });
+    },
+  });
+  // Failure in optional observation must not skip existing redaction/cleanup.
+  const observeDws = (observe: () => void) => { try { observe(); } catch { /* local abstention */ } };
   const emitSkillScanEvent = createSkillScanEventWriter(stateDir);
   const scanService = new SkillScanService({
     state,
@@ -501,10 +517,23 @@ export function createClawAegisRuntime(
 
   return {
     state,
+    dwsReplyGuard,
     scanService,
     staticSystemContext,
     hooks: {
+      before_model_resolve: (event: { prompt?: string }, ctx: ReplyContext) => {
+        dwsReplyGuard.begin(event.prompt, ctx);
+      },
+      before_agent_run: (event: { senderIsOwner?: boolean }, ctx: ReplyContext) => {
+        dwsReplyGuard.owner(event.senderIsOwner, ctx);
+      },
+      model_call_started: (event: { callId?: string }, ctx: ReplyContext) => dwsReplyGuard.model(event, ctx),
+      model_call_ended: (event: { callId?: string; outcome?: string }, ctx: ReplyContext) => dwsReplyGuard.model(event, ctx, true),
+      before_compaction: (_event: unknown, ctx: ReplyContext) => dwsReplyGuard.invalidate(ctx),
+      before_reset: (_event: unknown, ctx: ReplyContext) => dwsReplyGuard.invalidate(ctx),
+      gateway_stop: () => dwsReplyGuard.clear(),
       gateway_start: async () => {
+        await dwsReplyGuard.ready();
         logger.info("claw-aegis: 网关启动", {
           event: "gateway_start",
         });
@@ -1151,12 +1180,8 @@ export function createClawAegisRuntime(
 
       before_tool_call: (
         event: PluginHookBeforeToolCallEvent,
-        ctx: {
-          sessionKey?: string;
-          runId?: string;
-          workspaceDir?: string;
-        },
-      ): PluginHookBeforeToolCallResult | undefined => {
+        ctx: ReplyContext,
+      ): PluginHookBeforeToolCallResult | undefined | Promise<PluginHookBeforeToolCallResult | undefined> => {
         const normalizedToolName = normalizeToolName(event.toolName);
         const normalizedParams = normalizeToolParamsForGuard(event.params ?? {});
         const sessionKey = ctx.sessionKey?.trim();
@@ -1209,7 +1234,7 @@ export function createClawAegisRuntime(
             result: "disabled",
             durationMs,
           });
-          return undefined;
+          return dwsReplyGuard.before({ ...event, toolName: normalizedToolName }, ctx);
         }
         const baseDir = ctx.workspaceDir ?? process.cwd();
         const protectedRoots = isDefenseEnabled(selfProtectionMode) ? state.getProtectedRoots() : [];
@@ -1414,17 +1439,14 @@ export function createClawAegisRuntime(
           result: "allowed",
           durationMs: totalDurationMs,
         });
-        return undefined;
+        return dwsReplyGuard.before({ ...event, toolName: normalizedToolName }, ctx);
       },
 
       after_tool_call: (
         event: PluginHookAfterToolCallEvent,
-        ctx: {
-          sessionKey?: string;
-          runId?: string;
-          workspaceDir?: string;
-        },
+        ctx: ReplyContext,
       ) => {
+        observeDws(() => dwsReplyGuard.result(event.result, event.error, ctx));
         const sessionKey = ctx.sessionKey?.trim();
         const runId = ctx.runId?.trim();
         const normalizedToolName = normalizeToolName(event.toolName);
@@ -1533,6 +1555,7 @@ export function createClawAegisRuntime(
           runId?: string;
         },
       ) => {
+        observeDws(() => dwsReplyGuard.end(ctx));
         const sessionKey = ctx.sessionKey?.trim();
         const runId = ctx.runId?.trim();
         if (runId) {
@@ -1559,6 +1582,7 @@ export function createClawAegisRuntime(
           sessionKey?: string;
         },
       ) => {
+        observeDws(() => dwsReplyGuard.end(ctx, true));
         const sessionKey = ctx.sessionKey?.trim();
         if (!sessionKey) {
           return;
@@ -1574,8 +1598,9 @@ export function createClawAegisRuntime(
 
       before_message_write: (
         event: PluginHookBeforeMessageWriteEvent,
-        ctx: { sessionKey?: string },
+        ctx: ReplyContext,
       ) => {
+        const review = () => {
         const startedAt = now();
         const sessionKey = ctx.sessionKey?.trim();
         const message = event.message as Record<string, unknown>;
@@ -1814,6 +1839,10 @@ export function createClawAegisRuntime(
           });
         }
         return undefined;
+        };
+        const result = review();
+        observeDws(() => dwsReplyGuard.transcript(result?.message ?? event.message, ctx));
+        return result;
       },
     },
   };

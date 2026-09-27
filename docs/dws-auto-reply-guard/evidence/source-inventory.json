@@ -1,0 +1,48 @@
+{
+  "targetRevision": "7137092b39c0ddb55ee9a956cd463f6807439427",
+  "sourceDrift": "none",
+  "files": [
+    {
+      "path": "index.ts",
+      "sha256": "10bd4f22313bbeef0d6d7fbbaa1568dcc707525f802241e6d011862a2d13c77b"
+    },
+    {
+      "path": "index.js",
+      "sha256": "4bf25956bec26d874a612b9ce9a72a4b659cfe57d922b32e3e84d80a51c5c82f"
+    },
+    {
+      "path": "runtime-api.ts",
+      "sha256": "2ccab64059f85911eee61b48b6ef8260bc3ab65dce545e96af59a734ec46728f"
+    },
+    {
+      "path": "package.json",
+      "sha256": "040a07e060ab68bebfd330b1e5e3a8c48d65c9b9897c045750c3b1571e486fdd"
+    },
+    {
+      "path": "openclaw.plugin.json",
+      "sha256": "eea2e61ab2cf4a70e18d07e5bb07c21c6a2874eb69233edee6ad8c8d95bd0941"
+    },
+    {
+      "path": "src/handlers.ts",
+      "sha256": "54b7ccccf8c8e75679afeda3ff464587cec4fa05f7d5985d9cdcb49552f226ee"
+    },
+    {
+      "path": "src/config.ts",
+      "sha256": "ec2fb444619f0821937a7488279c8d1bf6e365f1fca4ac628c53fcec7eb3b8ce"
+    },
+    {
+      "path": "src/state.ts",
+      "sha256": "59e1ade6380bba07202c1e59399bf9f710efc4f6892d93a7a5b6c492a60b1d4d"
+    },
+    {
+      "path": "src/security-strategies.ts",
+      "sha256": "35e15626ca814200e75cfb7621680528b8e816c6f738822fdf5675505f817382"
+    },
+    {
+      "path": "docs/live-validation-2026-09-18.md",
+      "sha256": "e4431482f40ccbb6757478f6ccd5f5c08e35fb6accef46d4d907deac9d2d4e20"
+    }
+  ],
+  "collectionSha256": "08052b78f4183bae898174e6f14ae7c12e607f757a06028358ccc5965a4b2c3c",
+  "digestEncoding": "UTF-8 JSON array files, compact separators, original order"
+}

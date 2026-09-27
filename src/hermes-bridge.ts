@@ -78,12 +78,16 @@ export function createHermesBridge() {
       // The same task/turn id can occur in independent gateway sessions.
       const runId = sessionKey ? JSON.stringify([sessionKey,
         payload.turn_id || payload.task_id || sessionKey]) : undefined;
-      const ctx = { sessionKey, runId, workspaceDir: payload.workspace_dir };
+      const ctx = { sessionKey, runId, workspaceDir: payload.workspace_dir,
+        toolCallId: payload.tool_call_id, apiRequestId: payload.api_request_id, host: "hermes" as const };
       const toolEvents = () => normalizeHermesTool(payload.tool_name,
         payload.args ?? {}, { home, skillDir: payload.skill_dir, workspaceDir: payload.workspace_dir });
       switch (method) {
         case "pre_llm_call": {
           const content = typeof payload.user_message === "string" ? payload.user_message : "";
+          runtime.dwsReplyGuard.begin(content, ctx,
+            payload.platform === "cli" && !payload.parent_session_id,
+            payload.sender_id, payload.platform);
           if (sessionKey) deniedSessions.delete(sessionKey);
           const policyText = hostPolicyText(content);
           const dispatch = await runtime.hooks.before_agent_reply({ cleanedBody: content }, ctx)
@@ -98,12 +102,21 @@ export function createHermesBridge() {
           const result = await runtime.hooks.before_prompt_build({ prompt: content }, ctx);
           return result?.appendSystemContext ? { context: result.appendSystemContext } : null;
         }
+        case "pre_api_request":
+          runtime.dwsReplyGuard.apiStart({ id: payload.api_request_id,
+            toolResultIds: payload.tool_result_ids, toolResultFingerprints: payload.tool_result_fingerprints, retry: payload.retry_count,
+            complete: payload.reply_evidence_complete }, ctx);
+          return null;
+        case "post_api_request":
+          runtime.dwsReplyGuard.apiEnd({ id: payload.api_request_id,
+            toolCallIds: payload.tool_call_ids, complete: payload.reply_evidence_complete }, ctx);
+          return null;
         case "pre_tool_call":
           if (sessionKey && deniedSessions.has(sessionKey)) {
             return { action: "block", message: deniedSessions.get(sessionKey) };
           }
           for (const event of toolEvents()) {
-            const result = runtime.hooks.before_tool_call(event, ctx);
+            const result = await runtime.hooks.before_tool_call(event, ctx);
             if (result?.block) return { action: "block", message: result.blockReason };
           }
           return null;
@@ -115,6 +128,8 @@ export function createHermesBridge() {
           }
           return null;
         case "transform_tool_result": {
+          try { runtime.dwsReplyGuard.result(payload.result, payload.status && payload.status !== "ok", ctx); }
+          catch { /* Optional evidence failure must not disable existing sanitization. */ }
           const original = typeof payload.result === "string" ? payload.result : JSON.stringify(payload.result);
           const toolName = toolEvents()[0]?.toolName ?? payload.tool_name;
           const message = { role: "toolResult", toolName,
@@ -148,6 +163,7 @@ export function createHermesBridge() {
           runtime.hooks.session_end({}, ctx);
           return null;
         case "shutdown":
+          runtime.dwsReplyGuard.clear();
           await runtime.scanService.stop();
           return null;
         default:

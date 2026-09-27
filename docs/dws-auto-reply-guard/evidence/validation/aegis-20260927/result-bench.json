@@ -1,0 +1,176 @@
+{
+  "environment": {
+    "node": "v26.8.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCpu": 10,
+    "totalMemory": 25769803776
+  },
+  "scope": "isolated hook/component replay; no tool commands, DWS, network, model, gateway, or production plugin changes",
+  "aegisCommit": "23d59b8986b86de448d24ff973e662295768d533",
+  "mode": "bench",
+  "metrics": [
+    {
+      "name": "Aegis.before.ordinary",
+      "n": 3000,
+      "p50_ms": 0.019583000000011452,
+      "p95_ms": 0.034874999999999545,
+      "p99_ms": 0.06804200000000549,
+      "max_ms": 0.22862500000000097,
+      "mean_ms": 0.02258785633333334,
+      "wall_ms": 68.606416,
+      "cpu_ms": 90.573,
+      "logRecordsPerCall": 33,
+      "logBytesPerCall": 7628
+    },
+    {
+      "name": "Aegis.before.read",
+      "n": 3000,
+      "p50_ms": 0.03983299999998735,
+      "p95_ms": 0.10845799999998462,
+      "p99_ms": 0.23449999999999704,
+      "max_ms": 7.177415999999994,
+      "mean_ms": 0.0579516993333332,
+      "wall_ms": 175.05629199999998,
+      "cpu_ms": 181.91,
+      "logRecordsPerCall": 33,
+      "logBytesPerCall": 7628
+    },
+    {
+      "name": "Aegis.before.send",
+      "n": 3000,
+      "p50_ms": 0.041042000000004464,
+      "p95_ms": 0.10366699999997309,
+      "p99_ms": 0.1463330000000269,
+      "max_ms": 0.7539579999999546,
+      "mean_ms": 0.04742118566666693,
+      "wall_ms": 143.154292,
+      "cpu_ms": 157.994,
+      "logRecordsPerCall": 33,
+      "logBytesPerCall": 7628
+    },
+    {
+      "name": "Aegis.before.listen",
+      "n": 3000,
+      "p50_ms": 0.034791999999981726,
+      "p95_ms": 0.043000000000006366,
+      "p99_ms": 0.07925000000000182,
+      "max_ms": 0.13629100000002836,
+      "mean_ms": 0.03627119733333372,
+      "wall_ms": 109.43950000000001,
+      "cpu_ms": 122.653,
+      "logRecordsPerCall": 33,
+      "logBytesPerCall": 7628
+    },
+    {
+      "name": "Aegis.before.python",
+      "n": 3000,
+      "p50_ms": 0.05812500000001819,
+      "p95_ms": 0.07541700000001583,
+      "p99_ms": 0.10799999999994725,
+      "max_ms": 0.171875,
+      "mean_ms": 0.06074918566666471,
+      "wall_ms": 182.8932920000001,
+      "cpu_ms": 205.394,
+      "logRecordsPerCall": 33,
+      "logBytesPerCall": 7628
+    },
+    {
+      "name": "Aegis.after.read",
+      "n": 3000,
+      "p50_ms": 0.0002500000000509317,
+      "p95_ms": 0.0005830000000059954,
+      "p99_ms": 0.0007500000000391083,
+      "max_ms": 0.04808400000001711,
+      "mean_ms": 0.0003545676666668669,
+      "wall_ms": 1.180667000000085,
+      "cpu_ms": 2.285,
+      "logRecordsPerCall": 0,
+      "logBytesPerCall": 0
+    },
+    {
+      "name": "existing-DWS-command-parser.send",
+      "n": 10000,
+      "p50_ms": 0.0012080000000196378,
+      "p95_ms": 0.0016249999999899956,
+      "p99_ms": 0.002166999999985819,
+      "max_ms": 0.08745899999996709,
+      "mean_ms": 0.001384710500000142,
+      "wall_ms": 14.12824999999998,
+      "cpu_ms": 18.318,
+      "logRecordsPerCall": 0,
+      "logBytesPerCall": 0
+    },
+    {
+      "name": "warm-async-read-only.8192",
+      "n": 1000,
+      "p50_ms": 0.020417000000065855,
+      "p95_ms": 0.030167000000005828,
+      "p99_ms": 0.052125000000046384,
+      "max_ms": 0.38512500000001637,
+      "mean_ms": 0.021516711999999983,
+      "wall_ms": 21.55525,
+      "cpu_ms": 28.995,
+      "logRecordsPerCall": 0,
+      "logBytesPerCall": 0
+    },
+    {
+      "name": "JSON-parse-only.actual-bytes-5456",
+      "n": 3000,
+      "p50_ms": 0.005666999999903055,
+      "p95_ms": 0.0062919999999166976,
+      "p99_ms": 0.010416999999961263,
+      "max_ms": 0.10749999999995907,
+      "mean_ms": 0.005879801666666708,
+      "wall_ms": 17.71462500000007,
+      "cpu_ms": 17.997,
+      "logRecordsPerCall": 0,
+      "logBytesPerCall": 0
+    },
+    {
+      "name": "warm-async-read-only.65536",
+      "n": 1000,
+      "p50_ms": 0.016166999999995824,
+      "p95_ms": 0.027916000000004715,
+      "p99_ms": 0.05416700000000674,
+      "max_ms": 0.0987079999999878,
+      "mean_ms": 0.019021798999999076,
+      "wall_ms": 19.050749999999994,
+      "cpu_ms": 20.125,
+      "logRecordsPerCall": 0,
+      "logBytesPerCall": 0
+    },
+    {
+      "name": "JSON-parse-only.actual-bytes-44364",
+      "n": 3000,
+      "p50_ms": 0.04745900000000347,
+      "p95_ms": 0.05566699999997127,
+      "p99_ms": 0.07224999999993997,
+      "max_ms": 0.14095800000006875,
+      "mean_ms": 0.04861134933333373,
+      "wall_ms": 145.92012499999998,
+      "cpu_ms": 146.177,
+      "logRecordsPerCall": 0,
+      "logBytesPerCall": 0
+    }
+  ],
+  "cleanedLoopMemory": {
+    "before": {
+      "rss": 101859328,
+      "heapTotal": 26951680,
+      "heapUsed": 7713552,
+      "external": 2796270,
+      "arrayBuffers": 143757
+    },
+    "after": {
+      "rss": 108003328,
+      "heapTotal": 30097408,
+      "heapUsed": 7905544,
+      "external": 2640662,
+      "arrayBuffers": 143757
+    },
+    "iterations": 10000,
+    "warning": "Aegis+V8 microbenchmark only; not proposed guard RSS or container memory"
+  }
+}
