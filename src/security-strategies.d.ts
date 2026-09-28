@@ -101,6 +101,8 @@ export type ToolCallDefenseStateAccess = {
     }) => void;
 };
 export type ToolCallDefenseContext = {
+    host?: "openclaw" | "hermes";
+    controlConfigPaths?: readonly string[];
     toolName: string;
     params: Record<string, unknown>;
     commandText?: string;
@@ -267,6 +269,24 @@ export declare const SKILL_SCAN_RULES: readonly [{
     readonly patterns: readonly [RegExp, RegExp];
 }];
 export declare const TOOL_CALL_DEFENSE_STRATEGIES: readonly [{
+    readonly id: "gateway_control_guard";
+    readonly modeSource: readonly ["commandBlock", "selfProtection"];
+    readonly order: 0.5;
+    readonly clearResult: "clear";
+    readonly observedMessage: "claw-aegis: 观察者模式命中 Gateway 管理操作，已放行";
+    readonly blockedMessage: "claw-aegis: 已阻止 Agent 自主管理 Gateway";
+    readonly appliesTo: (ctx: ToolCallDefenseContext) => boolean;
+    readonly evaluate: (ctx: ToolCallDefenseContext) => ToolCallDefenseResult;
+}, {
+    readonly id: "control_config_mutation_guard";
+    readonly modeSource: "selfProtection";
+    readonly order: 0.6;
+    readonly clearResult: "clear";
+    readonly observedMessage: "claw-aegis: 观察者模式命中控制配置修改，已放行";
+    readonly blockedMessage: "claw-aegis: 已阻止修改受保护的控制配置";
+    readonly appliesTo: (ctx: ToolCallDefenseContext) => boolean;
+    readonly evaluate: (ctx: ToolCallDefenseContext) => ToolCallDefenseResult;
+}, {
     readonly id: "self_protection_guard";
     readonly modeSource: "selfProtection";
     readonly order: 1;

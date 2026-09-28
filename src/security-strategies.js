@@ -1,4 +1,5 @@
-import { BLOCK_REASON_EXFILTRATION_CHAIN, BLOCK_REASON_HIGH_RISK_OPERATION, BLOCK_REASON_LOOP, BLOCK_REASON_PROTECTED_PATH, BLOCK_REASON_WORKSPACE_DELETE, LOOP_GUARD_ALLOW_COUNT, } from "./config.js";
+import { BLOCK_REASON_EXFILTRATION_CHAIN, BLOCK_REASON_HIGH_RISK_OPERATION, BLOCK_REASON_LOOP, BLOCK_REASON_PROTECTED_PATH, BLOCK_REASON_WORKSPACE_DELETE, BLOCK_REASON_GATEWAY_MUTATION, BLOCK_REASON_CONTROL_CONFIG_MUTATION, LOOP_GUARD_ALLOW_COUNT, } from "./config.js";
+import { mutationMatches, resolveConfigMutations } from "./config-mutations.js";
 function isModeEnabled(mode) {
     return mode !== "off";
 }
@@ -459,6 +460,45 @@ export const SKILL_SCAN_RULES = [
     },
 ];
 export const TOOL_CALL_DEFENSE_STRATEGIES = [
+    {
+        id: "gateway_control_guard",
+        modeSource: ["commandBlock", "selfProtection"],
+        order: 0.5,
+        clearResult: "clear",
+        observedMessage: "claw-aegis: 观察者模式命中 Gateway 管理操作，已放行",
+        blockedMessage: "claw-aegis: 已阻止 Agent 自主管理 Gateway",
+        appliesTo: (ctx) => ctx.host === "openclaw" && ctx.toolName === "gateway",
+        evaluate: (ctx) => {
+            // Mirror the native schema's trimmed, case-sensitive action. Notes and
+            // other tools' similarly named operations have no policy significance.
+            const action = typeof ctx.params.action === "string" ? ctx.params.action.trim() : "";
+            const configWrite = action === "config.apply" || action === "config.patch";
+            if (!configWrite && action !== "restart" && action !== "update.run")
+                return { result: "clear" };
+            const mode = configWrite ? resolveModeFromSources(ctx, ["selfProtection", "commandBlock"]) : ctx.modes.commandBlock;
+            if (!isModeEnabled(mode))
+                return { result: "clear", mode };
+            return resolveMatchedResult(mode, BLOCK_REASON_GATEWAY_MUTATION, { action });
+        },
+    },
+    {
+        id: "control_config_mutation_guard",
+        modeSource: "selfProtection",
+        order: 0.6,
+        clearResult: "clear",
+        observedMessage: "claw-aegis: 观察者模式命中控制配置修改，已放行",
+        blockedMessage: "claw-aegis: 已阻止修改受保护的控制配置",
+        appliesTo: (ctx) => isModeEnabled(ctx.modes.selfProtection) && !!ctx.controlConfigPaths?.length,
+        evaluate: (ctx) => {
+            const matches = resolveConfigMutations(ctx.toolName, ctx.params, ctx.baseDir)
+                .filter(mutation => mutationMatches(mutation, ctx.controlConfigPaths));
+            if (!matches.length)
+                return { result: "clear", mode: ctx.modes.selfProtection };
+            return resolveMatchedResult(ctx.modes.selfProtection, BLOCK_REASON_CONTROL_CONFIG_MUTATION, {
+                matches: matches.map(m => m.path), matchCount: matches.length,
+            });
+        },
+    },
     {
         id: "self_protection_guard",
         modeSource: "selfProtection",

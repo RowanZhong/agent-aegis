@@ -3,23 +3,23 @@ import path from "node:path";
 
 export type DeletionTarget = { value: string; baseDir: string; glob?: boolean; filtered?: boolean };
 type Part = { text: string; expand: boolean; glob: boolean };
-type Word = { parts: Part[]; op?: string };
+export type Word = { parts: Part[]; op?: string; embedded?: string[] };
 type Inspection = { targets: DeletionTarget[]; uncertain: boolean };
 const DELETE_COMMANDS = new Set(["rm", "unlink", "rmdir", "trash", "remove-item", "del", "rd"]);
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const MAX_LENGTH = 10_000;
 
 /** Bounded lexical inspection only: never expand a glob, run a substitution or source a file. */
-function shellWords(input: string): { words: Word[]; embedded: string[] } | undefined {
+export function shellWords(input: string, groups = false): { words: Word[]; embedded: string[] } | undefined {
   const words: Word[] = [], embedded: string[] = [];
-  let parts: Part[] = [], quote = "", started = false;
+  let parts: Part[] = [], quote = "", started = false, substitutions: string[] = [];
   const add = (text: string, expand: boolean, glob: boolean) => {
     const previous = parts.at(-1);
     if (previous?.expand === expand && previous.glob === glob) previous.text += text;
     else parts.push({ text, expand, glob });
     started = true;
   };
-  const flush = () => { if (started) words.push({ parts }); parts = []; started = false; };
+  const flush = () => { if (started) words.push({ parts, embedded: substitutions }); parts = []; substitutions = []; started = false; };
   for (let i = 0; i < input.length; i++) {
     const c = input[i];
     if (quote === "'") { if (c === "'") quote = ""; else add(c, false, false); continue; }
@@ -38,14 +38,14 @@ function shellWords(input: string): { words: Word[]; embedded: string[] } | unde
         if ((backtick && input[end] === "`") || (!backtick && input[end] === ")" && --depth === 0)) break;
       }
       if (end === input.length) return;
-      const code = input.slice(start, end); embedded.push(code);
+      const code = input.slice(start, end); embedded.push(code); substitutions.push(code);
       add(/^\s*pwd\s*$/.test(code) ? "$PWD" : "$__AEGIS_UNRESOLVED_SUBSTITUTION", true, !quote);
       i = end; continue;
     }
     if (quote === '"') { if (c === '"') quote = ""; else add(c, true, false); continue; }
     if (c === "'" || c === '"') { quote = c; started = true; continue; }
     if (c === "#" && !started) { while (i < input.length && input[i] !== "\n") i++; i--; continue; }
-    if (c === "\n" || ";|&<>".includes(c)) {
+    if (c === "\n" || ";|&<>".includes(c) || groups && "()".includes(c)) {
       flush(); let op = c === "\n" ? ";" : c;
       if (input[i + 1] === c && c !== "\n") op += input[++i];
       words.push({ parts: [], op }); continue;
@@ -58,7 +58,7 @@ function shellWords(input: string): { words: Word[]; embedded: string[] } | unde
   flush(); return { words, embedded };
 }
 
-function expand(word: Word, variables: Map<string, string | undefined>, cwd: string | undefined): { value?: string; glob: boolean } {
+export function expand(word: Word, variables: Map<string, string | undefined>, cwd: string | undefined): { value?: string; glob: boolean } {
   let unresolved = false, glob = false;
   const value = word.parts.map(part => {
     let text = part.text;

@@ -443,6 +443,29 @@ def test_invalid_bridge_config_does_not_remove_the_guard(loaded, timeout):
     assert call(manager, "pre_tool_call", tool_name="terminal", args={"command": "pwd"})["action"] == "block"
 
 
+@pytest.mark.parametrize("filename", ["mcp-servers.json5", "agents-list.json5"])
+def test_openclaw_control_config_mutation_only_and_host_binding(loaded, filename):
+    load, home, work = loaded
+    manager = load()
+    target = str(Path.home() / ".openclaw" / filename)
+    # Hook-only checks of the real user's pathname: never execute these tools.
+    for tool, args in [
+        ("terminal", {"command": f"cat > '{target}' <<'EOF'\n{{}}\nEOF"}),
+        ("write_file", {"path": target, "content": "{}"}),
+        ("patch", {"mode": "replace", "path": target, "old_string": "a", "new_string": "b"}),
+    ]:
+        result = call(manager, "pre_tool_call", tool_name=tool, args=args)
+        assert result["action"] == "block"
+        assert "MCP" in result["message"]
+    for tool, args in [
+        ("read_file", {"path": target}),
+        ("write_file", {"path": str(work / filename), "content": "{}"}),
+        ("write_file", {"path": str(home / filename), "content": "{}"}),
+        ("gateway", {"action": "restart"}),
+    ]:
+        assert call(manager, "pre_tool_call", tool_name=tool, args=args) is None
+
+
 @pytest.mark.skipif(os.name == "nt", reason="SIGSTOP fault injection is POSIX-only")
 def test_full_stdin_pipe_is_bounded_too(loaded):
     load, _, _ = loaded

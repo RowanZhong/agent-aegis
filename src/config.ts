@@ -35,6 +35,8 @@ export const BLOCK_REASON_WORKSPACE_DELETE =
   "安全限制：禁止删除 workspace 本身、整体清空其内容，或删除 workspace 之外的路径。";
 export const BLOCK_REASON_OPENCLAW_COMMAND =
   "安全限制：禁止执行 openclaw CLI 或控制命令。";
+export const BLOCK_REASON_GATEWAY_MUTATION = "安全限制：禁止 Agent 自主重启、更新 Gateway 或修改其配置。";
+export const BLOCK_REASON_CONTROL_CONFIG_MUTATION = "安全限制：禁止修改受保护的 MCP 或 Agent 列表配置文件；只读操作不受本规则限制。";
 export const BLOCK_REASON_HIGH_RISK_OPERATION = "安全限制：已阻止本次高风险操作请求。";
 export const BLOCK_REASON_MEMORY_WRITE = "安全限制：已拒绝本次高风险记忆写入。";
 export const BLOCK_REASON_LOOP = "安全限制：检测到重复高风险工具调用，已停止本次操作。";
@@ -167,7 +169,7 @@ export const clawAegisPluginUiHints = {
   },
   selfProtectionEnabled: {
     label: "Protect Sensitive Paths",
-    help: "Protect sensitive paths and important skills; block workspace root deletion, bulk workspace clearing, and deletion outside the current workspace.",
+    help: "Protect sensitive paths and skills, workspace deletion boundaries, and modifications to OpenClaw mcp-servers.json5 / agents-list.json5 control files.",
   },
   selfProtectionMode: {
     label: "Sensitive Path Mode",
@@ -175,7 +177,7 @@ export const clawAegisPluginUiHints = {
   },
   commandBlockEnabled: {
     label: "Block High-Risk Commands",
-    help: "Block clear high-risk shell patterns such as rm -rf / and curl | sh.",
+    help: "Block high-risk shell patterns and Agent-initiated Gateway restart, configuration changes, or updates.",
   },
   commandBlockMode: {
     label: "Command Block Mode",

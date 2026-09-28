@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { CONTROL_CONFIG_FILES } from "./config-mutations.js";
 import { BLOCK_REASON_DISPATCH_GUARD, CLAW_AEGIS_PLUGIN_ID, DEFENSE_EVENTS_FILENAME, SKILL_SCAN_EVENTS_FILENAME, STARTUP_SCAN_BUDGET_MS, } from "./config.js";
 import { resolveClawAegisPluginConfig, resolveClawAegisStateDir, resolveSkillScanRoots, } from "./config.js";
 import { buildDynamicPromptContext, buildLoopGuardStableArgsKey, buildStaticSystemContext, collectScriptArtifactRecords, collectSensitiveOutputValues, collectToolResultScanText, detectCommandObfuscationViolation, AEGIS_REFUSAL_PREFIX, detectDispatchGuardViolation, detectHighRiskCommand, detectUserRiskFlags, isOutboundToolCall, isThirdPartyWebToolResultMessage, normalizeToolName, normalizeToolParamsForGuard, reviewSuspiciousOutboundChain, resolveInlineExecutionViolation, resolveMemoryGuardViolation, resolveOutsideWorkspaceDeletionViolation, resolveProtectedPathCandidates, resolveProtectedPathViolation, resolveScriptProvenanceViolation, resolveSelfProtectionTextViolation, sanitizeAssistantMessage, sanitizeSensitiveOutputText, sanitizeToolResultMessage, scanToolResultText, } from "./rules.js";
@@ -297,6 +299,11 @@ export function createClawAegisRuntime(api, options) {
     const stateDir = options?.stateDir ?? resolveClawAegisStateDir(api);
     const emitDefenseEvent = createDefenseEventWriter(stateDir);
     const config = resolveClawAegisPluginConfig(api);
+    const host = options?.host ?? "openclaw";
+    const controlConfigPaths = [...new Set([
+            path.join(os.homedir(), ".openclaw"),
+            ...(host === "openclaw" ? [path.resolve(api.runtime.state.resolveStateDir())] : []),
+        ].flatMap(root => CONTROL_CONFIG_FILES.map(name => path.join(root, name))))];
     const skillScanRoots = options?.skillScanRoots ?? resolveSkillScanRoots(api);
     const state = new ClawAegisState({ stateDir, logger, now: options?.now });
     const dwsReplyGuard = new DwsReplyGuard({ mode: config.dwsReplyGuardMode, now,
@@ -336,6 +343,44 @@ export function createClawAegisRuntime(api, options) {
         })
         : undefined;
     const promptHooksEnabled = arePromptHooksEnabled(api);
+    // Native OpenClaw tool hooks omit workspaceDir, but agent lifecycle hooks
+    // carry it. Keep this host-owned context out of untrusted tool parameters.
+    const controlWorkspaces = new Map();
+    const workspaceKeys = (ctx) => [
+        ...(ctx.runId ? [JSON.stringify([ctx.agentId, ctx.sessionKey, ctx.runId])] : []),
+        ...(ctx.sessionKey ? [JSON.stringify([ctx.agentId, ctx.sessionKey])] : []),
+    ];
+    const rememberWorkspace = (ctx) => {
+        if (typeof ctx.workspaceDir !== "string" || !path.isAbsolute(ctx.workspaceDir))
+            return;
+        for (const key of workspaceKeys(ctx)) {
+            controlWorkspaces.delete(key);
+            controlWorkspaces.set(key, { path: ctx.workspaceDir, at: now() });
+        }
+        while (controlWorkspaces.size > 256)
+            controlWorkspaces.delete(controlWorkspaces.keys().next().value);
+    };
+    const controlWorkspace = (ctx, fallback) => {
+        if (ctx.workspaceDir)
+            return ctx.workspaceDir;
+        for (const key of workspaceKeys(ctx)) {
+            const known = controlWorkspaces.get(key);
+            if (known && now() - known.at < 2 * 60 * 60 * 1000)
+                return known.path;
+        }
+        if (host === "openclaw") {
+            const agents = api.config?.agents;
+            const list = Array.isArray(agents?.list) ? agents.list : [];
+            const configured = list.find(a => a.id === ctx.agentId)?.workspace;
+            // Only the explicit or unambiguous single-agent fallback is portable
+            // between the two hosts. Fleet/implicit paths use lifecycle metadata.
+            const single = list.length <= 1 && (!ctx.agentId || (list.length ? list[0].id === ctx.agentId : ctx.agentId === "main"));
+            const value = configured ?? (single ? agents?.defaults?.workspace : undefined);
+            if (typeof value === "string" && value.trim())
+                return api.resolvePath(value.trim());
+        }
+        return fallback;
+    };
     warnIfPromptHooksDisabled(api);
     return {
         state,
@@ -344,16 +389,19 @@ export function createClawAegisRuntime(api, options) {
         staticSystemContext,
         hooks: {
             before_model_resolve: (event, ctx) => {
+                rememberWorkspace(ctx);
                 dwsReplyGuard.begin(event.prompt, ctx);
             },
             before_agent_run: (event, ctx) => {
+                rememberWorkspace(ctx);
                 dwsReplyGuard.owner(event.senderIsOwner, ctx);
             },
             model_call_started: (event, ctx) => dwsReplyGuard.model(event, ctx),
             model_call_ended: (event, ctx) => dwsReplyGuard.model(event, ctx, true),
             before_compaction: (_event, ctx) => dwsReplyGuard.invalidate(ctx),
-            before_reset: (_event, ctx) => dwsReplyGuard.invalidate(ctx),
-            gateway_stop: () => dwsReplyGuard.clear(),
+            before_reset: (_event, ctx) => { for (const key of workspaceKeys(ctx))
+                controlWorkspaces.delete(key); dwsReplyGuard.invalidate(ctx); },
+            gateway_stop: () => { controlWorkspaces.clear(); dwsReplyGuard.clear(); },
             gateway_start: async () => {
                 await dwsReplyGuard.ready();
                 logger.info("claw-aegis: 网关启动", {
@@ -602,6 +650,7 @@ export function createClawAegisRuntime(api, options) {
                 return sanitized.changed ? { content: sanitized.value } : undefined;
             },
             before_prompt_build: async (event, ctx) => {
+                rememberWorkspace(ctx);
                 const startedAt = now();
                 const sessionKey = ctx.sessionKey?.trim();
                 let syntheticState;
@@ -1013,7 +1062,7 @@ export function createClawAegisRuntime(api, options) {
                     });
                     return dwsReplyGuard.before({ ...event, toolName: normalizedToolName }, ctx);
                 }
-                const baseDir = ctx.workspaceDir ?? process.cwd();
+                const baseDir = controlWorkspace(ctx, process.cwd());
                 const protectedRoots = isDefenseEnabled(selfProtectionMode) ? state.getProtectedRoots() : [];
                 const pathCandidates = resolveProtectedPathCandidates(normalizedToolName, normalizedParams, baseDir);
                 logger.debug?.("claw-aegis: 已规范化工具调用", {
@@ -1037,6 +1086,8 @@ export function createClawAegisRuntime(api, options) {
                 const promptSnapshot = sessionKey ? state.peekPromptSnapshot(sessionKey) : undefined;
                 const commandText = readCommandText(normalizedParams);
                 const toolCallContext = {
+                    host,
+                    controlConfigPaths,
                     toolName: normalizedToolName,
                     params: normalizedParams,
                     commandText,
@@ -1310,6 +1361,9 @@ export function createClawAegisRuntime(api, options) {
                 }
             },
             session_end: (_event, ctx) => {
+                for (const key of controlWorkspaces.keys())
+                    if (JSON.parse(key)[1] === ctx.sessionKey)
+                        controlWorkspaces.delete(key);
                 observeDws(() => dwsReplyGuard.end(ctx, true));
                 const sessionKey = ctx.sessionKey?.trim();
                 if (!sessionKey) {

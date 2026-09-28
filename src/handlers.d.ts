@@ -4,6 +4,8 @@ import { SkillScanService } from "./scan-service.js";
 import { ClawAegisState } from "./state.js";
 import { DwsReplyGuard, type ReplyContext } from "./dws-reply-guard/index.js";
 export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?: {
+    /** Bound by the adapter, never inferred from untrusted tool arguments. */
+    host?: "openclaw" | "hermes";
     now?: () => number;
     /** Host adapters can keep runtime data separate from installed plugin code. */
     stateDir?: string;
@@ -41,9 +43,7 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
         message_sending: (event: PluginHookMessageSendingEvent, ctx: {
             sessionKey?: string;
         }) => PluginHookMessageSendingResult | undefined;
-        before_prompt_build: (event: PluginHookBeforePromptBuildEvent, ctx: {
-            sessionKey?: string;
-        }) => Promise<PluginHookBeforePromptBuildResult | undefined>;
+        before_prompt_build: (event: PluginHookBeforePromptBuildEvent, ctx: ReplyContext) => Promise<PluginHookBeforePromptBuildResult | undefined>;
         before_dispatch: (event: {
             content: string;
             body?: string;
@@ -94,9 +94,7 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
             sessionKey?: string;
             runId?: string;
         }) => void;
-        session_end: (_event: PluginHookSessionEndEvent, ctx: {
-            sessionKey?: string;
-        }) => void;
+        session_end: (_event: PluginHookSessionEndEvent, ctx: ReplyContext) => void;
         before_message_write: (event: PluginHookBeforeMessageWriteEvent, ctx: ReplyContext) => {
             message: never;
         } | undefined;

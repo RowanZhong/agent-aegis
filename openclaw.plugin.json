@@ -19,7 +19,7 @@
     },
     "selfProtectionEnabled": {
       "label": "Protect Sensitive Paths",
-      "help": "Protect sensitive paths and important skills; block workspace root deletion, bulk workspace clearing, and deletion outside the current workspace."
+      "help": "Protect sensitive paths and skills, workspace deletion boundaries, and modifications to OpenClaw mcp-servers.json5 / agents-list.json5 control files."
     },
     "selfProtectionMode": {
       "label": "Sensitive Path Mode",
@@ -27,7 +27,7 @@
     },
     "commandBlockEnabled": {
       "label": "Block High-Risk Commands",
-      "help": "Block clear high-risk shell patterns such as rm -rf / and curl | sh."
+      "help": "Block high-risk shell patterns and Agent-initiated Gateway restart, configuration changes, or updates."
     },
     "commandBlockMode": {
       "label": "Command Block Mode",

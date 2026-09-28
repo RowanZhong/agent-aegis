@@ -57,6 +57,7 @@ export function createHermesBridge() {
                 runtime = createClawAegisRuntime(api, {
                     stateDir,
                     skillScanRoots: payload.skill_roots ?? [path.join(home, "skills")],
+                    host: "hermes",
                     toolCallDefenseStrategies: [hermesCommandGuard, ...TOOL_CALL_DEFENSE_STRATEGIES],
                 });
                 await runtime.hooks.gateway_start();

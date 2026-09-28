@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { CONTROL_CONFIG_FILES } from "./config-mutations.js";
 import type {
   PluginHookAfterToolCallEvent,
   PluginHookAgentEndEvent,
@@ -457,6 +459,8 @@ function logObservedToolCall(params: {
 export function createClawAegisRuntime(
   api: OpenClawPluginApi,
   options?: {
+    /** Bound by the adapter, never inferred from untrusted tool arguments. */
+    host?: "openclaw" | "hermes";
     now?: () => number;
     /** Host adapters can keep runtime data separate from installed plugin code. */
     stateDir?: string;
@@ -477,6 +481,11 @@ export function createClawAegisRuntime(
   const stateDir = options?.stateDir ?? resolveClawAegisStateDir(api);
   const emitDefenseEvent = createDefenseEventWriter(stateDir);
   const config = resolveClawAegisPluginConfig(api);
+  const host = options?.host ?? "openclaw";
+  const controlConfigPaths = [...new Set([
+    path.join(os.homedir(), ".openclaw"),
+    ...(host === "openclaw" ? [path.resolve(api.runtime.state.resolveStateDir())] : []),
+  ].flatMap(root => CONTROL_CONFIG_FILES.map(name => path.join(root, name))))];
   const skillScanRoots = options?.skillScanRoots ?? resolveSkillScanRoots(api);
   const state = new ClawAegisState({ stateDir, logger, now: options?.now });
   const dwsReplyGuard = new DwsReplyGuard({ mode: config.dwsReplyGuardMode, now,
@@ -513,6 +522,38 @@ export function createClawAegisRuntime(
       })
     : undefined;
   const promptHooksEnabled = arePromptHooksEnabled(api);
+  // Native OpenClaw tool hooks omit workspaceDir, but agent lifecycle hooks
+  // carry it. Keep this host-owned context out of untrusted tool parameters.
+  const controlWorkspaces = new Map<string, { path: string; at: number }>();
+  const workspaceKeys = (ctx: ReplyContext) => [
+    ...(ctx.runId ? [JSON.stringify([ctx.agentId, ctx.sessionKey, ctx.runId])] : []),
+    ...(ctx.sessionKey ? [JSON.stringify([ctx.agentId, ctx.sessionKey])] : []),
+  ];
+  const rememberWorkspace = (ctx: ReplyContext) => {
+    if (typeof ctx.workspaceDir !== "string" || !path.isAbsolute(ctx.workspaceDir)) return;
+    for (const key of workspaceKeys(ctx)) {
+      controlWorkspaces.delete(key); controlWorkspaces.set(key,{path:ctx.workspaceDir,at:now()});
+    }
+    while (controlWorkspaces.size > 256) controlWorkspaces.delete(controlWorkspaces.keys().next().value!);
+  };
+  const controlWorkspace = (ctx: ReplyContext, fallback: string) => {
+    if (ctx.workspaceDir) return ctx.workspaceDir;
+    for (const key of workspaceKeys(ctx)) {
+      const known = controlWorkspaces.get(key);
+      if (known && now()-known.at < 2*60*60*1000) return known.path;
+    }
+    if (host === "openclaw") {
+      const agents = api.config?.agents as {list?: {id?: string;workspace?: string}[];defaults?: {workspace?: string}} | undefined;
+      const list = Array.isArray(agents?.list) ? agents.list : [];
+      const configured = list.find(a=>a.id === ctx.agentId)?.workspace;
+      // Only the explicit or unambiguous single-agent fallback is portable
+      // between the two hosts. Fleet/implicit paths use lifecycle metadata.
+      const single = list.length <= 1 && (!ctx.agentId || (list.length ? list[0].id === ctx.agentId : ctx.agentId === "main"));
+      const value = configured ?? (single ? agents?.defaults?.workspace : undefined);
+      if (typeof value === "string" && value.trim()) return api.resolvePath(value.trim());
+    }
+    return fallback;
+  };
 
   warnIfPromptHooksDisabled(api);
 
@@ -523,16 +564,18 @@ export function createClawAegisRuntime(
     staticSystemContext,
     hooks: {
       before_model_resolve: (event: { prompt?: string }, ctx: ReplyContext) => {
+        rememberWorkspace(ctx);
         dwsReplyGuard.begin(event.prompt, ctx);
       },
       before_agent_run: (event: { senderIsOwner?: boolean }, ctx: ReplyContext) => {
+        rememberWorkspace(ctx);
         dwsReplyGuard.owner(event.senderIsOwner, ctx);
       },
       model_call_started: (event: { callId?: string }, ctx: ReplyContext) => dwsReplyGuard.model(event, ctx),
       model_call_ended: (event: { callId?: string; outcome?: string }, ctx: ReplyContext) => dwsReplyGuard.model(event, ctx, true),
       before_compaction: (_event: unknown, ctx: ReplyContext) => dwsReplyGuard.invalidate(ctx),
-      before_reset: (_event: unknown, ctx: ReplyContext) => dwsReplyGuard.invalidate(ctx),
-      gateway_stop: () => dwsReplyGuard.clear(),
+      before_reset: (_event: unknown, ctx: ReplyContext) => { for (const key of workspaceKeys(ctx)) controlWorkspaces.delete(key); dwsReplyGuard.invalidate(ctx); },
+      gateway_stop: () => { controlWorkspaces.clear(); dwsReplyGuard.clear(); },
       gateway_start: async () => {
         await dwsReplyGuard.ready();
         logger.info("claw-aegis: 网关启动", {
@@ -789,10 +832,9 @@ export function createClawAegisRuntime(
 
       before_prompt_build: async (
         event: PluginHookBeforePromptBuildEvent,
-        ctx: {
-          sessionKey?: string;
-        },
+        ctx: ReplyContext,
       ): Promise<PluginHookBeforePromptBuildResult | undefined> => {
+        rememberWorkspace(ctx);
         const startedAt = now();
         const sessionKey = ctx.sessionKey?.trim();
         let syntheticState: TurnSecurityState | undefined;
@@ -1237,7 +1279,7 @@ export function createClawAegisRuntime(
           });
           return dwsReplyGuard.before({ ...event, toolName: normalizedToolName }, ctx);
         }
-        const baseDir = ctx.workspaceDir ?? process.cwd();
+        const baseDir = controlWorkspace(ctx, process.cwd());
         const protectedRoots = isDefenseEnabled(selfProtectionMode) ? state.getProtectedRoots() : [];
         const pathCandidates = resolveProtectedPathCandidates(
           normalizedToolName,
@@ -1271,6 +1313,8 @@ export function createClawAegisRuntime(
         const promptSnapshot = sessionKey ? state.peekPromptSnapshot(sessionKey) : undefined;
         const commandText = readCommandText(normalizedParams);
         const toolCallContext: ToolCallDefenseContext = {
+          host,
+          controlConfigPaths,
           toolName: normalizedToolName,
           params: normalizedParams,
           commandText,
@@ -1579,10 +1623,9 @@ export function createClawAegisRuntime(
 
       session_end: (
         _event: PluginHookSessionEndEvent,
-        ctx: {
-          sessionKey?: string;
-        },
+        ctx: ReplyContext,
       ) => {
+        for (const key of controlWorkspaces.keys()) if (JSON.parse(key)[1] === ctx.sessionKey) controlWorkspaces.delete(key);
         observeDws(() => dwsReplyGuard.end(ctx, true));
         const sessionKey = ctx.sessionKey?.trim();
         if (!sessionKey) {

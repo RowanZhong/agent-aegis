@@ -4,9 +4,9 @@ const DELETE_COMMANDS = new Set(["rm", "unlink", "rmdir", "trash", "remove-item"
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const MAX_LENGTH = 10_000;
 /** Bounded lexical inspection only: never expand a glob, run a substitution or source a file. */
-function shellWords(input) {
+export function shellWords(input, groups = false) {
     const words = [], embedded = [];
-    let parts = [], quote = "", started = false;
+    let parts = [], quote = "", started = false, substitutions = [];
     const add = (text, expand, glob) => {
         const previous = parts.at(-1);
         if (previous?.expand === expand && previous.glob === glob)
@@ -16,7 +16,7 @@ function shellWords(input) {
         started = true;
     };
     const flush = () => { if (started)
-        words.push({ parts }); parts = []; started = false; };
+        words.push({ parts, embedded: substitutions }); parts = []; substitutions = []; started = false; };
     for (let i = 0; i < input.length; i++) {
         const c = input[i];
         if (quote === "'") {
@@ -53,6 +53,7 @@ function shellWords(input) {
                 return;
             const code = input.slice(start, end);
             embedded.push(code);
+            substitutions.push(code);
             add(/^\s*pwd\s*$/.test(code) ? "$PWD" : "$__AEGIS_UNRESOLVED_SUBSTITUTION", true, !quote);
             i = end;
             continue;
@@ -75,7 +76,7 @@ function shellWords(input) {
             i--;
             continue;
         }
-        if (c === "\n" || ";|&<>".includes(c)) {
+        if (c === "\n" || ";|&<>".includes(c) || groups && "()".includes(c)) {
             flush();
             let op = c === "\n" ? ";" : c;
             if (input[i + 1] === c && c !== "\n")
@@ -96,7 +97,7 @@ function shellWords(input) {
     flush();
     return { words, embedded };
 }
-function expand(word, variables, cwd) {
+export function expand(word, variables, cwd) {
     let unresolved = false, glob = false;
     const value = word.parts.map(part => {
         let text = part.text;

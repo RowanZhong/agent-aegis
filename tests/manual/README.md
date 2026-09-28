@@ -1,5 +1,18 @@
 # Opt-in live checks
 
+Gateway/control-config checks use each installed OpenClaw's native hook runner,
+execution wrapper and real exec/write tools with disposable files:
+
+```sh
+node tests/manual/control_config_native.mjs /absolute/path/to/agent-aegis \
+  /absolute/path/to/openclaw /tmp/aegis-control-new-run
+```
+
+Supported versions: `2026.7.1-2` and `2026.8.1`. Gateway mutation execution has a
+tripwire; the script never restarts a running service. Normal file writes,
+reads, and read-only reference operands execute through real host tools.
+No model inference is involved. See [policy semantics](../../docs/control-config-protection.md).
+
 These scripts are deliberately outside CI. Use a full installed Hermes Python
 environment and an **unmodified v2026.8.19 checkout**. `--hermes-root` selects the
 source to import; the Python interpreter supplies its dependencies. Build this
