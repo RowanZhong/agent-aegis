@@ -86,6 +86,7 @@ export declare function resolveOutsideWorkspaceDeletionViolation(toolName: strin
 export declare function detectUserRiskFlags(text: string): UserRiskMatch;
 export declare function buildStaticSystemContext(params?: {
     selfProtectionEnabled?: boolean;
+    workspaceDeletionEnforced?: boolean;
     toolCallEnforcementEnabled?: boolean;
     protectedPaths?: string[];
 }): string;

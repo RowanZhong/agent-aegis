@@ -483,8 +483,8 @@ export const TOOL_CALL_DEFENSE_STRATEGIES = [
         modeSource: "selfProtection",
         order: 2,
         clearResult: "clear",
-        observedMessage: "claw-aegis: 观察者模式命中 workspace 外删除风险，已放行",
-        blockedMessage: "claw-aegis: 已阻止删除 workspace 外路径",
+        observedMessage: "claw-aegis: 观察者模式命中 workspace 根目录、整体清空或外部路径删除风险，已放行",
+        blockedMessage: "claw-aegis: 已阻止删除 workspace 根目录、整体清空或外部路径",
         appliesTo: (ctx) => isModeEnabled(ctx.modes.selfProtection),
         evaluate: (ctx) => {
             const violation = ctx.helpers.resolveOutsideWorkspaceDeletionViolation(ctx.toolName, ctx.params, ctx.baseDir, ctx.baseDir);

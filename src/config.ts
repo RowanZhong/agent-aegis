@@ -32,7 +32,7 @@ export const SKILL_SCAN_EVENTS_FILENAME = "skill-scan-events.jsonl";
 export const BLOCK_REASON_PROTECTED_PATH =
   "安全限制：禁止访问、查询、修改、删除、关闭或绕过受保护的敏感路径、配置、重要 skill 或 claw-aegis 插件目录。";
 export const BLOCK_REASON_WORKSPACE_DELETE =
-  "安全限制：禁止删除 workspace 之外的路径。";
+  "安全限制：禁止删除 workspace 本身、整体清空其内容，或删除 workspace 之外的路径。";
 export const BLOCK_REASON_OPENCLAW_COMMAND =
   "安全限制：禁止执行 openclaw CLI 或控制命令。";
 export const BLOCK_REASON_HIGH_RISK_OPERATION = "安全限制：已阻止本次高风险操作请求。";
@@ -167,7 +167,7 @@ export const clawAegisPluginUiHints = {
   },
   selfProtectionEnabled: {
     label: "Protect Sensitive Paths",
-    help: "Block reads, writes, deletes, and searches that target protected paths, important skills, or try to delete files outside the current workspace.",
+    help: "Protect sensitive paths and important skills; block workspace root deletion, bulk workspace clearing, and deletion outside the current workspace.",
   },
   selfProtectionMode: {
     label: "Sensitive Path Mode",

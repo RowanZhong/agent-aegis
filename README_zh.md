@@ -266,7 +266,7 @@ AgentAegis 的防御参数存储在 `openclaw.plugin.json` 的 `userConfig` 字�
 |------|------|--------|------|
 | `allDefensesEnabled` | boolean | `true` | 全局防御总开关 |
 | `defaultBlockingMode` | `off` / `observe` / `enforce` | `enforce` | 所有拦截类防御的默认模式 |
-| `selfProtectionEnabled` | boolean | `true` | 保护敏感路径、Skill和插件 |
+| `selfProtectionEnabled` | boolean | `true` | 保护敏感路径、Skill、插件及工作目录根目录；禁止整体清空工作目录或删除其外部路径 |
 | `selfProtectionMode` | `off` / `observe` / `enforce` | `enforce` | 敏感路径防御的模式 |
 | `commandBlockEnabled` | boolean | `true` | 拦截高危Shell命令（如 `rm -rf /`、`curl \| sh`） |
 | `commandBlockMode` | `off` / `observe` / `enforce` | `enforce` | 命令拦截的模式 |

@@ -507,6 +507,7 @@ export function createClawAegisRuntime(
   const staticSystemContext = config.promptGuardEnabled
     ? buildStaticSystemContext({
         selfProtectionEnabled: config.selfProtectionEnabled,
+        workspaceDeletionEnforced: config.selfProtectionMode === "enforce",
         toolCallEnforcementEnabled: config.toolCallEnforcementEnabled,
         protectedPaths: config.protectedPaths,
       })

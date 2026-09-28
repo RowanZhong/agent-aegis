@@ -280,8 +280,8 @@ export declare const TOOL_CALL_DEFENSE_STRATEGIES: readonly [{
     readonly modeSource: "selfProtection";
     readonly order: 2;
     readonly clearResult: "clear";
-    readonly observedMessage: "claw-aegis: 观察者模式命中 workspace 外删除风险，已放行";
-    readonly blockedMessage: "claw-aegis: 已阻止删除 workspace 外路径";
+    readonly observedMessage: "claw-aegis: 观察者模式命中 workspace 根目录、整体清空或外部路径删除风险，已放行";
+    readonly blockedMessage: "claw-aegis: 已阻止删除 workspace 根目录、整体清空或外部路径";
     readonly appliesTo: (ctx: ToolCallDefenseContext) => boolean;
     readonly evaluate: (ctx: ToolCallDefenseContext) => ToolCallDefenseResult;
 }, {

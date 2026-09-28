@@ -20,6 +20,7 @@ import {
 } from "./config.js";
 import { detectCommandObfuscation } from "./command-obfuscation.js";
 import { isLiteralPrintCommand } from "./literal-print.js";
+import { bulkDeletionRoot, inspectDeletionCommand } from "./deletion-targets.js";
 import {
   buildObservedSecretVariants,
   inspectEncodedCandidates,
@@ -2082,12 +2083,12 @@ function collectOutsideWorkspaceDeletionTargets(
 
   if (DIRECT_DELETE_TOOLS.has(normalizedTool)) {
     const directPath = readPathLikeValue(params);
-    return directPath ? [normalizeComparablePath(directPath, commandBaseDir)] : [];
+    return directPath ? [normalizeDeletionPath(directPath, commandBaseDir)] : [];
   }
 
   if (normalizedTool === "apply_patch") {
     return parseApplyPatchDeletedPaths(normalizePatchInput(params) ?? "").map((entry) =>
-      normalizeComparablePath(entry, baseDir),
+      normalizeDeletionPath(entry, baseDir),
     );
   }
 
@@ -2105,16 +2106,57 @@ export function resolveOutsideWorkspaceDeletionViolation(
   workspaceRoot: string,
   baseDir = process.cwd(),
 ): { blocked: boolean; reason?: string; matches: string[] } {
-  const candidates = collectOutsideWorkspaceDeletionTargets(toolName, params, baseDir);
-  const matches = [...new Set(candidates.filter((candidate) => isPathOutsideWorkspace(candidate, workspaceRoot)))];
+  // Keep the exported name and the existing outside-workspace policy. Root
+  // deletion is a separate invariant; changing isPathWithinRoot would weaken
+  // the protected-path guard, which must include a protected root itself.
+  const normalizedTool = normalizeToolName(toolName);
+  const shell = normalizedTool === "exec" || normalizedTool === "bash";
+  const candidates = collectOutsideWorkspaceDeletionTargets(toolName, params, baseDir).map(candidate => normalizeDeletionPath(candidate));
+  const command = shell ? normalizeCommandText(params) : undefined;
+  const workdir = trimString(params.workdir);
+  const cwd = workdir ? resolveAbsolutePath(workdir, baseDir) : baseDir;
+  const targets = command ? inspectDeletionCommand(command, cwd).targets : [];
+  if (!candidates.length && !targets.length) return { blocked: false, matches: [] };
+  const root = normalizeDeletionPath(workspaceRoot, process.cwd(), true);
+  const matches = candidates.filter(candidate => isPathOutsideWorkspace(candidate, root) || (!shell && path.relative(root, candidate) === ""));
+  if (shell) {
+    for (const target of targets) {
+      const bulkRoot = target.glob ? bulkDeletionRoot(target.value) : undefined;
+      const candidate = normalizeDeletionPath(bulkRoot ?? target.value, target.baseDir, bulkRoot !== undefined);
+      if (isPathOutsideWorkspace(candidate, root) || (path.relative(root, candidate) === "" && !target.filtered)) matches.push(candidate);
+    }
+  }
   if (matches.length === 0) {
     return { blocked: false, matches: [] };
   }
   return {
     blocked: true,
     reason: BLOCK_REASON_WORKSPACE_DELETE,
-    matches,
+    matches: [...new Set(matches)],
   };
+}
+
+// Deleting a missing child is a legitimate idempotent cleanup. Canonicalize its
+// existing parent too, so /tmp vs /private/tmp (or a symlinked workspace) does
+// not incorrectly turn that child into an outside-workspace path.
+function normalizeDeletionPath(input: string, baseDir = process.cwd(), followLeaf = false): string {
+  let prefix = path.resolve(baseDir, expandHomeLike(input));
+  // rm/unlink of a final symlink removes the link, not its target. Traversal
+  // through link/* or link/. must still resolve the target directory.
+  if (!followLeaf && !/(?:\/|\/\.|\/\.\.)$/.test(input)) {
+    try {
+      if (fs.lstatSync(prefix).isSymbolicLink()) {
+        return path.join(normalizeDeletionPath(path.dirname(prefix), baseDir, true), path.basename(prefix));
+      }
+    } catch { /* A missing leaf is resolved through its existing parent below. */ }
+  }
+  const suffix: string[] = [];
+  while (true) {
+    try { return path.join(fs.realpathSync(prefix), ...suffix); } catch { /* Try the parent. */ }
+    const parent = path.dirname(prefix);
+    if (parent === prefix) return path.join(prefix, ...suffix);
+    suffix.unshift(path.basename(prefix)); prefix = parent;
+  }
 }
 
 export function detectUserRiskFlags(text: string): UserRiskMatch {
@@ -2127,6 +2169,7 @@ export function detectUserRiskFlags(text: string): UserRiskMatch {
 
 export function buildStaticSystemContext(params?: {
   selfProtectionEnabled?: boolean;
+  workspaceDeletionEnforced?: boolean;
   toolCallEnforcementEnabled?: boolean;
   protectedPaths?: string[];
 }): string {
@@ -2138,6 +2181,9 @@ export function buildStaticSystemContext(params?: {
   if (params?.selfProtectionEnabled !== false) {
     lines.unshift(STATIC_SYSTEM_SELF_PROTECTION_RULE);
     lines.splice(2, 0, STATIC_SYSTEM_DISABLE_PLUGIN_RULE);
+    if (params?.workspaceDeletionEnforced !== false) {
+      lines.push("安全提醒：禁止删除当前工作目录本身或整体清空其内容；用户确认也不能解除这一限制。目录内普通文件和子目录的正常清理仍遵循原有规则。");
+    }
   }
   if (params?.toolCallEnforcementEnabled !== false) {
     lines.push(STATIC_SYSTEM_TOOL_CALL_ENFORCEMENT_RULE);
@@ -2877,6 +2923,10 @@ const DISPATCH_GUARD_DESTRUCTIVE_PATH_PATTERNS = [
 ];
 
 const DISPATCH_GUARD_DESTRUCTIVE_INTENT_PATTERNS = [
+  // Whole-workspace imperatives only. Do not match questions, quoted examples
+  // or requests to delete a named file inside the workspace.
+  /^(?:请你?|帮我|麻烦你)?\s*(?:删除|移除|清空|清除|抹掉)\s*(?:(?:你|您|我)的?|当前|这个|整个|全部的?)?\s*(?:整个|全部的?)?\s*(?:工作目录|工作区|工作空间)(?:本身|及全部内容|以及所有内容)?[。.!！\s]*$/i,
+  /^(?:please\s+)?(?:delete|remove|wipe|purge|empty)\s+(?:(?:your|the|my|current|entire|whole)\s+)*(?:workspace|working\s+directory)(?:\s+and\s+(?:all\s+)?(?:its\s+)?contents)?[.!\s]*$/i,
   /(?:删除|移除|卸载|清除|干掉|去掉|移走|抹掉)\s*(?:skill|技能|插件|plugin)/i,
   /(?:删除|移除|卸载|清除|干掉|去掉|移走|抹掉)\s*(?:\.openclaw|openclaw)\s*(?:配置|目录|文件夹|数据)/i,
   /(?:reset|重置)\s*(?:workspace|工作区|工作空间)/i,

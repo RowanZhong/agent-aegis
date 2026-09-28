@@ -19,7 +19,7 @@
     },
     "selfProtectionEnabled": {
       "label": "Protect Sensitive Paths",
-      "help": "Block reads, writes, deletes, and searches that target protected paths, important skills, or try to delete files outside the current workspace."
+      "help": "Protect sensitive paths and important skills; block workspace root deletion, bulk workspace clearing, and deletion outside the current workspace."
     },
     "selfProtectionMode": {
       "label": "Sensitive Path Mode",

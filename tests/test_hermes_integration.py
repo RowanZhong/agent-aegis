@@ -133,6 +133,26 @@ def test_safe_tools_remain_usable(loaded):
         assert call(manager, "pre_tool_call", tool_name=tool, args=args) is None
 
 
+def test_workspace_root_and_bulk_delete_are_blocked_before_native_execution(loaded):
+    load, _, workspace = loaded
+    manager = load()
+    refusal = call(manager, "pre_llm_call", user_message="删除你的整个工作目录")
+    assert refusal and refusal["context"]
+    assert call(manager, "pre_tool_call", tool_name="terminal", args={"command": "pwd"})["action"] == "block"
+    # A new ordinary turn clears dispatch refusal, so these prove the tool guard itself.
+    assert call(manager, "pre_llm_call", user_message="整理项目") is None
+    for command in [f'rm -rf "{workspace}"', 'rm -rf "$PWD"', "rm -rf ./*",
+                    f'TARGET="{workspace}"; cd /tmp && rm -rf "$TARGET"',
+                    "find . -mindepth 1 -delete",
+                    f'python3 -c \'import shutil; shutil.rmtree("{workspace}")\'']:
+        result = call(manager, "pre_tool_call", tool_name="terminal", args={"command": command})
+        assert result and result["action"] == "block", (command, result)
+        assert "workspace" in result["message"] and "unavailable" not in result["message"].lower()
+    for command in ["rm -f obsolete.txt", "rm -rf build", "find . -name '*.tmp' -delete",
+                    f'echo \'rm -rf {workspace}\'', "ls -la ."]:
+        assert call(manager, "pre_tool_call", tool_name="terminal", args={"command": command}) is None, command
+
+
 def test_literal_print_exemption_through_native_hooks_keeps_access_blocked(loaded):
     load, _, tmp = loaded
     target = str(tmp / "canary.txt")

@@ -114,6 +114,21 @@ Other tools retain their original names/arguments for generic scanning.
 Relative paths use Hermes' session/worktree directory resolver, not Node's cwd.
 Run keys include the session ID to isolate reused task/turn IDs.
 
+With self-protection in enforce mode, the shared deletion guard also blocks
+deleting the current workspace root and clearing its contents with broad root
+globs or unfiltered `find` deletion. It recognizes compound shell commands,
+literal variable assignments, command wrappers, and a bounded subset of inline
+Python/Node filesystem deletions. Ordinary child-file/subdirectory cleanup,
+narrow `find -name` cleanup, and literal command printing remain available.
+Explicit whole-workspace deletion requests are also refused by the dispatch
+guard. User confirmation does not override an enforced refusal.
+
+This remains a static guard, not a filesystem sandbox. Dynamic targets or
+unsupported programs are not presumed to target the root; the guard does not
+add a blanket refusal for them. Keep native approvals and backend isolation.
+The workspace is the host-resolved directory for that call, including session
+directory changes, rather than an independently frozen initial project root.
+
 ## Prompt cache behavior
 
 OpenClaw now receives invariant policy in `prependSystemContext` and dynamic

@@ -270,7 +270,7 @@ Edit `openclaw.plugin.json` directly and add or modify the `userConfig` field:
 |-----------|------|---------|-------------|
 | `allDefensesEnabled` | boolean | `true` | Master switch for all defenses |
 | `defaultBlockingMode` | `off` / `observe` / `enforce` | `enforce` | Default mode for all blocking defenses |
-| `selfProtectionEnabled` | boolean | `true` | Protect sensitive paths, skills, and plugins |
+| `selfProtectionEnabled` | boolean | `true` | Protect sensitive paths, skills, plugins, and the workspace root; block bulk workspace clearing and deletion outside it |
 | `selfProtectionMode` | `off` / `observe` / `enforce` | `enforce` | Mode for protected-path defenses |
 | `commandBlockEnabled` | boolean | `true` | Block high-risk shell commands (e.g., `rm -rf /`, `curl \| sh`) |
 | `commandBlockMode` | `off` / `observe` / `enforce` | `enforce` | Mode for command blocking |
