@@ -9,6 +9,7 @@ import { resolveClawAegisPluginConfig } from "./config.js";
 import { buildDynamicPromptContext, detectHighRiskCommand } from "./rules.js";
 import { TOOL_CALL_DEFENSE_STRATEGIES, type ToolCallDefenseStrategy } from "./security-strategies.js";
 import { normalizeHermesTool } from "./hermes-tools.js";
+import { withHermesSkillDeletion, type HermesSkillDeletion } from "./hermes-skill-deletion.js";
 import type { OpenClawPluginApi } from "../runtime-api.js";
 
 type Payload = Record<string, any>;
@@ -63,7 +64,8 @@ export function createHermesBridge() {
           stateDir,
           skillScanRoots: payload.skill_roots ?? [path.join(home, "skills")],
           host: "hermes",
-          toolCallDefenseStrategies: [hermesCommandGuard, ...TOOL_CALL_DEFENSE_STRATEGIES],
+          toolCallDefenseStrategies: [hermesCommandGuard,
+            ...TOOL_CALL_DEFENSE_STRATEGIES.map(strategy => withHermesSkillDeletion(strategy, home))],
         });
         await runtime.hooks.gateway_start();
         const config = resolveClawAegisPluginConfig(api);
@@ -117,7 +119,11 @@ export function createHermesBridge() {
             return { action: "block", message: deniedSessions.get(sessionKey) };
           }
           for (const event of toolEvents()) {
-            const result = await runtime.hooks.before_tool_call(event, ctx);
+            // Only the Python adapter's top-level evidence can grant this scope.
+            // Tool args, other original tool names and later calls cannot inherit it.
+            const hermesSkillDeletion: HermesSkillDeletion | undefined = payload.tool_name === "skill_manage"
+              && ["delete", "remove_file"].includes(payload.args?.action) ? payload.skill_deletion : undefined;
+            const result = await runtime.hooks.before_tool_call(event, { ...ctx, hermesSkillDeletion });
             if (result?.block) return { action: "block", message: result.blockReason };
           }
           return null;

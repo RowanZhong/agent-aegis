@@ -191,6 +191,57 @@ class NodeBridge:
                     stream.close()
 
 
+def _skill_deletion_scope(args: dict, skill_dir: Path) -> dict | None:
+    """Describe a native skill operation, never trust scope fields in tool args.
+
+    Failure only withholds the exception; the ordinary guards still run.
+    Ownership, pinning and read-before-write remain the native tool's job.
+    """
+    try:
+        action = args.get("action")
+        if action not in {"delete", "remove_file"}:
+            return None
+        from agent.skill_utils import get_all_skills_dirs
+        from tools import skill_manager_tool as skills
+        from tools.registry import registry
+
+        entry = registry.get_entry("skill_manage")
+        if not entry or entry.handler.__module__ != skills.__name__:
+            return None  # An overriding/custom tool does not get native privileges.
+        roots = [p.resolve(strict=True) for p in get_all_skills_dirs() if p.is_dir()]
+        directory = skill_dir.resolve(strict=True)
+        if directory in roots or not any(directory.is_relative_to(p) for p in roots):
+            return None
+        if not (directory / "SKILL.md").is_file():
+            return None
+        archive_dir = None
+        if action == "delete":
+            if skills._validate_delete_target(skill_dir):
+                return None
+            target = directory
+            from tools.skill_provenance import is_background_review
+            if is_background_review():
+                from tools.skill_usage import _archive_dir
+                archive_dir = _archive_dir().resolve()
+                if archive_dir in roots or not any(archive_dir.is_relative_to(p) for p in roots):
+                    return None
+        else:
+            file_path = args.get("file_path")
+            if not isinstance(file_path, str) or skills._validate_file_path(file_path):
+                return None
+            target, error = skills._resolve_skill_target(skill_dir, file_path)
+            if error or target is None or not target.is_file():
+                return None
+            target = target.resolve(strict=True)
+            if target == directory or not target.is_relative_to(directory):
+                return None
+        return {"action": action, "name": args.get("name"), "skillDir": str(directory),
+                "roots": [str(p) for p in roots], "target": str(target),
+                "archiveDir": str(archive_dir) if archive_dir else None}
+    except Exception:
+        return None
+
+
 class HermesAegis:
     def __init__(self, bridge: NodeBridge, reply_enabled: bool = False):
         self.bridge = bridge
@@ -292,6 +343,9 @@ class HermesAegis:
                     found = _find_skill((payload.get("args") or {}).get("name", ""))
                     if found:
                         payload["skill_dir"] = str(found["path"])
+                        if method == "pre_tool_call":
+                            payload["skill_deletion"] = _skill_deletion_scope(
+                                payload.get("args") or {}, found["path"])
                 return self.bridge.call(method, payload)
             except Exception as exc:
                 LOG.error("AgentAegis %s failed: %s", method, type(exc).__name__)

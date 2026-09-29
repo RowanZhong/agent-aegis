@@ -97,6 +97,7 @@ const SELF_INTEGRITY_FILES = [
   "hermes_adapter.py",
   "src/hermes-bridge.js",
   "src/hermes-tools.js",
+  "src/hermes-skill-deletion.js",
 ] as const;
 
 function readCommandText(params: Record<string, unknown>): string | undefined {
@@ -1223,7 +1224,7 @@ export function createClawAegisRuntime(
 
       before_tool_call: (
         event: PluginHookBeforeToolCallEvent,
-        ctx: ReplyContext,
+        ctx: ReplyContext & { hermesSkillDeletion?: import("./hermes-skill-deletion.js").HermesSkillDeletion },
       ): PluginHookBeforeToolCallResult | undefined | Promise<PluginHookBeforeToolCallResult | undefined> => {
         const normalizedToolName = normalizeToolName(event.toolName);
         const normalizedParams = normalizeToolParamsForGuard(event.params ?? {});
@@ -1314,6 +1315,7 @@ export function createClawAegisRuntime(
         const commandText = readCommandText(normalizedParams);
         const toolCallContext: ToolCallDefenseContext = {
           host,
+          hermesSkillDeletion: host === "hermes" ? ctx.hermesSkillDeletion : undefined,
           controlConfigPaths,
           toolName: normalizedToolName,
           params: normalizedParams,

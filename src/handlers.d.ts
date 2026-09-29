@@ -78,7 +78,9 @@ export declare function createClawAegisRuntime(api: OpenClawPluginApi, options?:
             };
             reason?: string;
         } | undefined>;
-        before_tool_call: (event: PluginHookBeforeToolCallEvent, ctx: ReplyContext) => PluginHookBeforeToolCallResult | undefined | Promise<PluginHookBeforeToolCallResult | undefined>;
+        before_tool_call: (event: PluginHookBeforeToolCallEvent, ctx: ReplyContext & {
+            hermesSkillDeletion?: import("./hermes-skill-deletion.js").HermesSkillDeletion;
+        }) => PluginHookBeforeToolCallResult | undefined | Promise<PluginHookBeforeToolCallResult | undefined>;
         after_tool_call: (event: PluginHookAfterToolCallEvent, ctx: ReplyContext) => void;
         llm_output: (event: {
             assistantTexts: string[];

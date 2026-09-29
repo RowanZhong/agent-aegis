@@ -32,6 +32,7 @@ const SELF_INTEGRITY_FILES = [
     "hermes_adapter.py",
     "src/hermes-bridge.js",
     "src/hermes-tools.js",
+    "src/hermes-skill-deletion.js",
 ];
 function readCommandText(params) {
     for (const key of ["command", "cmd"]) {
@@ -1087,6 +1088,7 @@ export function createClawAegisRuntime(api, options) {
                 const commandText = readCommandText(normalizedParams);
                 const toolCallContext = {
                     host,
+                    hermesSkillDeletion: host === "hermes" ? ctx.hermesSkillDeletion : undefined,
                     controlConfigPaths,
                     toolName: normalizedToolName,
                     params: normalizedParams,

@@ -122,6 +122,23 @@ Observed-secret tests disable Hermes' earlier redactor only in their isolated
 process so that Aegis can see the synthetic key. Normal provider credentials are
 resolved in memory and are not saved in reports.
 
+## Hermes skill cleanup
+
+```sh
+"$HERMES_TEST_PYTHON" tests/manual/hermes_skill_cleanup_live.py \
+  --hermes-root "$HERMES_TEST_ROOT" --output /tmp/aegis-skill-cleanup
+```
+
+This drives real AIAgent memory/skill tools with native background-review
+provenance and the native tool whitelist. It does not call a model. Pass
+`--repo /path/to/784a772-checkout --expect-cleanup blocked` for the baseline,
+or `--plugin-disabled` for the host-only control, with separate output folders.
+The script explicitly records the pinned host's read-mark context loss; a passed
+check for that known refusal is not a successful edit/removal. Successful native
+read/remove and recoverable archive flows are also covered through the real
+registry in `tests/test_hermes_skill_cleanup.py`. See the
+[validation report](../../docs/hermes-skill-cleanup.md).
+
 ## Web checks
 
 Build the existing `web` workspace and start its API with `AEGIS_CONFIG_DIR`

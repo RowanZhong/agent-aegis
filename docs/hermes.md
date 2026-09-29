@@ -129,6 +129,16 @@ add a blanket refusal for them. Keep native approvals and backend isolation.
 The workspace is the host-resolved directory for that call, including session
 directory changes, rather than an independently frozen initial project root.
 
+Native `skill_manage(delete/remove_file)` calls can clean up a verified skill
+outside that workspace. The adapter resolves the skill and skill-library roots
+through Hermes for each call, including profile, nested and configured external
+directories. This exception only removes the outside-workspace deletion finding;
+protected resources, workspace/library/profile roots and all other guards remain
+protected. Shell commands and generic deletion tools do not receive the exception.
+Hermes still enforces ownership, pinning, read-before-write and consolidation
+requirements. See [scope and native verification](hermes-skill-cleanup.md), including
+the separate v2026.8.19 read-mark context issue reproduced with the plugin disabled.
+
 ## Prompt cache behavior
 
 OpenClaw now receives invariant policy in `prependSystemContext` and dynamic

@@ -181,6 +181,7 @@ export type ToolCallDefenseStateAccess = {
 
 export type ToolCallDefenseContext = {
   host?: "openclaw" | "hermes";
+  hermesSkillDeletion?: import("./hermes-skill-deletion.js").HermesSkillDeletion;
   controlConfigPaths?: readonly string[];
   toolName: string;
   params: Record<string, unknown>;
