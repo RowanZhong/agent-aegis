@@ -5,6 +5,9 @@
   "activation": {
     "onStartup": true
   },
+  "hooks": {
+    "allowConversationAccess": true
+  },
   "contracts": {
     "tools": []
   },

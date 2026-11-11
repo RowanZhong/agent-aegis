@@ -1021,68 +1021,92 @@ export function createClawAegisRuntime(
         event: { content: string; body?: string; channel?: string; sessionKey?: string; senderId?: string; isGroup?: boolean; timestamp?: number },
         ctx: { channelId?: string; accountId?: string; conversationId?: string; sessionKey?: string; senderId?: string },
       ): Promise<{ handled: boolean; text?: string } | undefined> => {
-        const startedAt = now();
-        const sessionKey = ctx.sessionKey?.trim();
-        logDefenseStart(logger, {
-          hook: "before_dispatch",
-          mechanism: "dispatch_guard",
-          sessionKey,
-        });
+        let startedAt: number | undefined;
+        let sessionKey: string | undefined;
 
-        if (!config.dispatchGuardEnabled) {
-          logDefenseFinish(logger, {
+        try {
+          startedAt = now();
+          sessionKey = ctx.sessionKey?.trim();
+          logDefenseStart(logger, {
             hook: "before_dispatch",
             mechanism: "dispatch_guard",
             sessionKey,
-            result: "disabled",
-            durationMs: now() - startedAt,
           });
-          return undefined;
-        }
 
-        const content = event.content?.trim();
-        if (!content) {
-          logDefenseFinish(logger, {
-            hook: "before_dispatch",
-            mechanism: "dispatch_guard",
-            sessionKey,
-            result: "empty_content",
-            durationMs: now() - startedAt,
+          if (!config.dispatchGuardEnabled) {
+            logDefenseFinish(logger, {
+              hook: "before_dispatch",
+              mechanism: "dispatch_guard",
+              sessionKey,
+              result: "disabled",
+              durationMs: now() - startedAt,
+            });
+            return undefined;
+          }
+
+          const content = event.content?.trim();
+          if (!content) {
+            logDefenseFinish(logger, {
+              hook: "before_dispatch",
+              mechanism: "dispatch_guard",
+              sessionKey,
+              result: "empty_content",
+              durationMs: now() - startedAt,
+            });
+            return undefined;
+          }
+
+          const violation = detectDispatchGuardViolation(content, config.protectedPaths);
+          if (!violation.blocked) {
+            logDefenseFinish(logger, {
+              hook: "before_dispatch",
+              mechanism: "dispatch_guard",
+              sessionKey,
+              result: "clear",
+              durationMs: now() - startedAt,
+            });
+            return undefined;
+          }
+
+          const durationMs = now() - startedAt;
+          const reason = violation.reason || BLOCK_REASON_DISPATCH_GUARD;
+
+          emitDefenseEvent({
+            timestamp: now(),
+            defense: "dispatch_guard",
+            result: config.dispatchGuardMode === "enforce" ? "blocked" : "observed",
+            reason,
+            details: {
+              hook: "before_dispatch",
+              flags: violation.flags,
+              mode: config.dispatchGuardMode,
+            },
+            userInput: content,
           });
-          return undefined;
-        }
 
-        const violation = detectDispatchGuardViolation(content, config.protectedPaths);
-        if (!violation.blocked) {
-          logDefenseFinish(logger, {
-            hook: "before_dispatch",
-            mechanism: "dispatch_guard",
-            sessionKey,
-            result: "clear",
-            durationMs: now() - startedAt,
-          });
-          return undefined;
-        }
+          if (config.dispatchGuardMode === "enforce") {
+            logger.warn("claw-aegis: before_dispatch 已拦截危险操作请求", {
+              event: "dispatch_guard_blocked",
+              hook: "before_dispatch",
+              sessionKey,
+              flags: violation.flags,
+              durationMs,
+            });
+            logDefenseFinish(logger, {
+              hook: "before_dispatch",
+              mechanism: "dispatch_guard",
+              sessionKey,
+              result: "blocked",
+              durationMs,
+            });
+            return {
+              handled: true,
+              text: `[SECURITY_BLOCKED:dispatch_guard] ${reason}\n\n所有破坏性操作必须通过标准 tool call 执行，不能绕过安全 hook。如确需执行，请联系管理员调整安全策略。`,
+            };
+          }
 
-        const durationMs = now() - startedAt;
-        const reason = violation.reason ?? BLOCK_REASON_DISPATCH_GUARD;
-
-        emitDefenseEvent({
-          timestamp: now(),
-          defense: "dispatch_guard",
-          result: config.dispatchGuardMode === "enforce" ? "blocked" : "observed",
-          reason,
-          details: {
-            hook: "before_dispatch",
-            flags: violation.flags,
-            mode: config.dispatchGuardMode,
-          },
-          userInput: content,
-        });
-
-        if (config.dispatchGuardMode === "enforce") {
-          logger.warn("claw-aegis: before_dispatch 已拦截危险操作请求", {
-            event: "dispatch_guard_blocked",
+          logger.info("claw-aegis: before_dispatch 已观测到危险操作请求（observe 模式）", {
+            event: "dispatch_guard_observed",
             hook: "before_dispatch",
             sessionKey,
             flags: violation.flags,
@@ -1092,30 +1116,57 @@ export function createClawAegisRuntime(
             hook: "before_dispatch",
             mechanism: "dispatch_guard",
             sessionKey,
-            result: "blocked",
+            result: "observed",
             durationMs,
           });
+          return undefined;
+        } catch (error) {
+          // Diagnostics must never escape into the outer fail-open wrapper.
+          let errorMessage = "unknown error";
+          let durationMs: number | undefined;
+          try {
+            errorMessage = error instanceof Error ? error.message : String(error);
+          } catch {
+            // Even an unprintable thrown value must keep the input blocked.
+          }
+          try {
+            if (startedAt !== undefined) durationMs = now() - startedAt;
+          } catch {
+            // Timing is optional when the clock itself failed.
+          }
+          try {
+            logger.error("claw-aegis: before_dispatch 异常，已 fail-closed 拦截", {
+              event: "dispatch_guard_exception",
+              hook: "before_dispatch",
+              mechanism: "dispatch_guard",
+              sessionKey,
+              result: "blocked",
+              reason: errorMessage,
+              durationMs,
+            });
+          } catch {
+            // Logging is best-effort; still attempt the independent audit.
+          }
+          try {
+            emitDefenseEvent({
+              timestamp: now(),
+              defense: "dispatch_guard",
+              result: "blocked",
+              reason: `before_dispatch 异常: ${errorMessage}`,
+              details: {
+                hook: "before_dispatch",
+                mode: config.dispatchGuardMode,
+                exception: true,
+              },
+            });
+          } catch {
+            // The writer can fail synchronously while serializing the record.
+          }
           return {
             handled: true,
-            text: `[ClawAegis] ${reason}\n\n所有破坏性操作必须通过标准 tool call 执行，不能绕过安全 hook。如确需执行，请联系管理员调整安全策略。`,
+            text: `[SECURITY_BLOCKED:dispatch-exception] before_dispatch 异常`,
           };
         }
-
-        logger.info("claw-aegis: before_dispatch 已观测到危险操作请求（observe 模式）", {
-          event: "dispatch_guard_observed",
-          hook: "before_dispatch",
-          sessionKey,
-          flags: violation.flags,
-          durationMs,
-        });
-        logDefenseFinish(logger, {
-          hook: "before_dispatch",
-          mechanism: "dispatch_guard",
-          sessionKey,
-          result: "observed",
-          durationMs,
-        });
-        return undefined;
       },
 
       before_agent_reply: async (
