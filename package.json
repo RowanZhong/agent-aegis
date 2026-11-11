@@ -1,6 +1,6 @@
 {
   "name": "@antgroup/agent-aegis",
-  "version": "2026.3.14",
+  "version": "2026.11.11",
   "private": false,
   "description": "OpenClaw and Hermes runtime safety guard plugin (AgentAegis) — multi-layer defense for prompt, tool, and tool-result flows.",
   "type": "module",
