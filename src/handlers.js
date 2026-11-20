@@ -229,6 +229,36 @@ function logDefenseResult(logger, meta, level = "info") {
     }
     logger.info(message, payload);
 }
+// Diagnostics are advisory. A broken logger, clock, or audit writer must never
+// change a verdict the guard already reached, and must never skip the core
+// check, so every non-essential step in a security hook goes through here.
+function bestEffort(step) {
+    try {
+        step();
+    }
+    catch {
+        // Intentionally ignored: logging, timing, and audit are optional.
+    }
+}
+function describeThrown(error) {
+    try {
+        return error instanceof Error ? error.message : String(error);
+    }
+    catch {
+        return "unknown error";
+    }
+}
+function elapsedSince(now, startedAt) {
+    if (startedAt === undefined) {
+        return undefined;
+    }
+    try {
+        return now() - startedAt;
+    }
+    catch {
+        return undefined;
+    }
+}
 function mergeDefenseModes(...modes) {
     if (modes.includes("enforce")) {
         return "enforce";
@@ -828,187 +858,329 @@ export function createClawAegisRuntime(api, options) {
                 };
             },
             before_dispatch: async (event, ctx) => {
-                const startedAt = now();
-                const sessionKey = ctx.sessionKey?.trim();
-                logDefenseStart(logger, {
-                    hook: "before_dispatch",
-                    mechanism: "dispatch_guard",
-                    sessionKey,
-                });
+                // `off` must allow the message regardless of diagnostics health, so the
+                // mode gate runs before anything that can throw for bookkeeping.
                 if (!config.dispatchGuardEnabled) {
-                    logDefenseFinish(logger, {
-                        hook: "before_dispatch",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "disabled",
-                        durationMs: now() - startedAt,
-                    });
                     return undefined;
                 }
-                const content = event.content?.trim();
-                if (!content) {
-                    logDefenseFinish(logger, {
-                        hook: "before_dispatch",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "empty_content",
-                        durationMs: now() - startedAt,
+                const mode = config.dispatchGuardMode;
+                let startedAt;
+                let sessionKey;
+                let stage = "entry";
+                // Reached only when the core check cannot complete: enforcement blocks
+                // with a fixed message, observe lets the input through.
+                const failCore = (failedStage, error) => {
+                    const reason = describeThrown(error);
+                    const durationMs = elapsedSince(now, startedAt);
+                    bestEffort(() => {
+                        logger.error("claw-aegis: before_dispatch 核心检查异常", {
+                            event: "dispatch_guard_exception",
+                            hook: "before_dispatch",
+                            mechanism: "dispatch_guard",
+                            stage: failedStage,
+                            sessionKey,
+                            result: mode === "enforce" ? "blocked" : "observed",
+                            reason,
+                            durationMs,
+                        });
                     });
-                    return undefined;
-                }
-                const violation = detectDispatchGuardViolation(content, config.protectedPaths);
-                if (!violation.blocked) {
-                    logDefenseFinish(logger, {
-                        hook: "before_dispatch",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "clear",
-                        durationMs: now() - startedAt,
+                    bestEffort(() => {
+                        emitDefenseEvent({
+                            timestamp: now(),
+                            defense: "dispatch_guard",
+                            result: mode === "enforce" ? "blocked" : "observed",
+                            reason: `before_dispatch 异常(${failedStage}): ${reason}`,
+                            details: {
+                                hook: "before_dispatch",
+                                mode,
+                                stage: failedStage,
+                                exception: true,
+                            },
+                        });
                     });
-                    return undefined;
-                }
-                const durationMs = now() - startedAt;
-                const reason = violation.reason ?? BLOCK_REASON_DISPATCH_GUARD;
-                emitDefenseEvent({
-                    timestamp: now(),
-                    defense: "dispatch_guard",
-                    result: config.dispatchGuardMode === "enforce" ? "blocked" : "observed",
-                    reason,
-                    details: {
-                        hook: "before_dispatch",
-                        flags: violation.flags,
-                        mode: config.dispatchGuardMode,
-                    },
-                    userInput: content,
-                });
-                if (config.dispatchGuardMode === "enforce") {
-                    logger.warn("claw-aegis: before_dispatch 已拦截危险操作请求", {
-                        event: "dispatch_guard_blocked",
-                        hook: "before_dispatch",
-                        sessionKey,
-                        flags: violation.flags,
-                        durationMs,
-                    });
-                    logDefenseFinish(logger, {
-                        hook: "before_dispatch",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "blocked",
-                        durationMs,
-                    });
+                    if (mode !== "enforce") {
+                        return undefined;
+                    }
                     return {
                         handled: true,
-                        text: `[ClawAegis] ${reason}\n\n所有破坏性操作必须通过标准 tool call 执行，不能绕过安全 hook。如确需执行，请联系管理员调整安全策略。`,
+                        text: "[SECURITY_BLOCKED:dispatch-exception] before_dispatch 异常",
                     };
+                };
+                try {
+                    bestEffort(() => {
+                        startedAt = now();
+                    });
+                    bestEffort(() => {
+                        sessionKey = ctx.sessionKey?.trim();
+                    });
+                    bestEffort(() => {
+                        logDefenseStart(logger, {
+                            hook: "before_dispatch",
+                            mechanism: "dispatch_guard",
+                            sessionKey,
+                        });
+                    });
+                    stage = "event_content";
+                    const content = event.content?.trim();
+                    if (!content) {
+                        bestEffort(() => {
+                            logDefenseFinish(logger, {
+                                hook: "before_dispatch",
+                                mechanism: "dispatch_guard",
+                                sessionKey,
+                                result: "empty_content",
+                                durationMs: elapsedSince(now, startedAt),
+                            });
+                        });
+                        return undefined;
+                    }
+                    stage = "rule_engine";
+                    const violation = detectDispatchGuardViolation(content, config.protectedPaths);
+                    if (!violation.blocked) {
+                        bestEffort(() => {
+                            logDefenseFinish(logger, {
+                                hook: "before_dispatch",
+                                mechanism: "dispatch_guard",
+                                sessionKey,
+                                result: "clear",
+                                durationMs: elapsedSince(now, startedAt),
+                            });
+                        });
+                        return undefined;
+                    }
+                    stage = "blocked_path";
+                    const durationMs = elapsedSince(now, startedAt);
+                    let reason = BLOCK_REASON_DISPATCH_GUARD;
+                    bestEffort(() => {
+                        reason = violation.reason || BLOCK_REASON_DISPATCH_GUARD;
+                    });
+                    bestEffort(() => {
+                        emitDefenseEvent({
+                            timestamp: now(),
+                            defense: "dispatch_guard",
+                            result: mode === "enforce" ? "blocked" : "observed",
+                            reason,
+                            details: {
+                                hook: "before_dispatch",
+                                flags: violation.flags,
+                                mode,
+                            },
+                            userInput: content,
+                        });
+                    });
+                    if (mode === "enforce") {
+                        bestEffort(() => {
+                            logger.warn("claw-aegis: before_dispatch 已拦截危险操作请求", {
+                                event: "dispatch_guard_blocked",
+                                hook: "before_dispatch",
+                                sessionKey,
+                                flags: violation.flags,
+                                durationMs,
+                            });
+                        });
+                        bestEffort(() => {
+                            logDefenseFinish(logger, {
+                                hook: "before_dispatch",
+                                mechanism: "dispatch_guard",
+                                sessionKey,
+                                result: "blocked",
+                                durationMs,
+                            });
+                        });
+                        return {
+                            handled: true,
+                            text: `[SECURITY_BLOCKED:dispatch_guard] ${reason}\n\n所有破坏性操作必须通过标准 tool call 执行，不能绕过安全 hook。如确需执行，请联系管理员调整安全策略。`,
+                        };
+                    }
+                    bestEffort(() => {
+                        logger.info("claw-aegis: before_dispatch 已观测到危险操作请求（observe 模式）", {
+                            event: "dispatch_guard_observed",
+                            hook: "before_dispatch",
+                            sessionKey,
+                            flags: violation.flags,
+                            durationMs,
+                        });
+                    });
+                    bestEffort(() => {
+                        logDefenseFinish(logger, {
+                            hook: "before_dispatch",
+                            mechanism: "dispatch_guard",
+                            sessionKey,
+                            result: "observed",
+                            durationMs,
+                        });
+                    });
+                    return undefined;
                 }
-                logger.info("claw-aegis: before_dispatch 已观测到危险操作请求（observe 模式）", {
-                    event: "dispatch_guard_observed",
-                    hook: "before_dispatch",
-                    sessionKey,
-                    flags: violation.flags,
-                    durationMs,
-                });
-                logDefenseFinish(logger, {
-                    hook: "before_dispatch",
-                    mechanism: "dispatch_guard",
-                    sessionKey,
-                    result: "observed",
-                    durationMs,
-                });
-                return undefined;
+                catch (error) {
+                    // Only the core check can land here; diagnostics are already isolated.
+                    return failCore(stage, error);
+                }
             },
             before_agent_reply: async (event, ctx) => {
-                const startedAt = now();
-                const sessionKey = ctx.sessionKey?.trim();
-                logDefenseStart(logger, {
-                    hook: "before_agent_reply",
-                    mechanism: "dispatch_guard",
-                    sessionKey,
-                });
+                // Same contract as before_dispatch: `off` must not depend on diagnostics.
                 if (!config.dispatchGuardEnabled) {
-                    logDefenseFinish(logger, {
-                        hook: "before_agent_reply",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "disabled",
-                        durationMs: now() - startedAt,
-                    });
                     return undefined;
                 }
-                const cleanedBody = event.cleanedBody?.trim();
-                if (!cleanedBody) {
-                    logDefenseFinish(logger, {
-                        hook: "before_agent_reply",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "empty_content",
-                        durationMs: now() - startedAt,
+                const mode = config.dispatchGuardMode;
+                let startedAt;
+                let sessionKey;
+                let stage = "entry";
+                // Reached only when the core check cannot complete: enforcement blocks
+                // with a fixed message, observe lets the reply through.
+                const failCore = (failedStage, error) => {
+                    const reason = describeThrown(error);
+                    const durationMs = elapsedSince(now, startedAt);
+                    bestEffort(() => {
+                        logger.error("claw-aegis: before_agent_reply 核心检查异常", {
+                            event: "dispatch_guard_exception",
+                            hook: "before_agent_reply",
+                            mechanism: "dispatch_guard",
+                            stage: failedStage,
+                            sessionKey,
+                            result: mode === "enforce" ? "blocked" : "observed",
+                            reason,
+                            durationMs,
+                        });
                     });
-                    return undefined;
-                }
-                const violation = detectDispatchGuardViolation(cleanedBody, config.protectedPaths);
-                if (!violation.blocked) {
-                    logDefenseFinish(logger, {
-                        hook: "before_agent_reply",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "clear",
-                        durationMs: now() - startedAt,
+                    bestEffort(() => {
+                        emitDefenseEvent({
+                            timestamp: now(),
+                            defense: "dispatch_guard",
+                            result: mode === "enforce" ? "blocked" : "observed",
+                            reason: `before_agent_reply 异常(${failedStage}): ${reason}`,
+                            details: {
+                                hook: "before_agent_reply",
+                                mode,
+                                stage: failedStage,
+                                exception: true,
+                            },
+                        });
                     });
-                    return undefined;
-                }
-                const durationMs = now() - startedAt;
-                const reason = violation.reason ?? BLOCK_REASON_DISPATCH_GUARD;
-                emitDefenseEvent({
-                    timestamp: now(),
-                    defense: "dispatch_guard",
-                    result: config.dispatchGuardMode === "enforce" ? "blocked" : "observed",
-                    reason,
-                    details: {
-                        hook: "before_agent_reply",
-                        flags: violation.flags,
-                        mode: config.dispatchGuardMode,
-                    },
-                    userInput: cleanedBody,
-                });
-                if (config.dispatchGuardMode === "enforce") {
-                    logger.warn("claw-aegis: before_agent_reply 已拦截危险操作请求", {
-                        event: "dispatch_guard_blocked",
-                        hook: "before_agent_reply",
-                        sessionKey,
-                        flags: violation.flags,
-                        durationMs,
-                    });
-                    logDefenseFinish(logger, {
-                        hook: "before_agent_reply",
-                        mechanism: "dispatch_guard",
-                        sessionKey,
-                        result: "blocked",
-                        durationMs,
-                    });
+                    if (mode !== "enforce") {
+                        return undefined;
+                    }
                     return {
                         handled: true,
                         reply: {
-                            text: `[ClawAegis] ${reason}\n\n所有破坏性操作必须通过标准 tool call 执行，不能绕过安全 hook。如确需执行，请联系管理员调整安全策略。`,
+                            text: "[SECURITY_BLOCKED:dispatch-exception] before_agent_reply 异常",
                         },
-                        reason: "dispatch_guard",
+                        reason: "dispatch_exception",
                     };
+                };
+                try {
+                    bestEffort(() => {
+                        startedAt = now();
+                    });
+                    bestEffort(() => {
+                        sessionKey = ctx.sessionKey?.trim();
+                    });
+                    bestEffort(() => {
+                        logDefenseStart(logger, {
+                            hook: "before_agent_reply",
+                            mechanism: "dispatch_guard",
+                            sessionKey,
+                        });
+                    });
+                    stage = "event_content";
+                    const cleanedBody = event.cleanedBody?.trim();
+                    if (!cleanedBody) {
+                        bestEffort(() => {
+                            logDefenseFinish(logger, {
+                                hook: "before_agent_reply",
+                                mechanism: "dispatch_guard",
+                                sessionKey,
+                                result: "empty_content",
+                                durationMs: elapsedSince(now, startedAt),
+                            });
+                        });
+                        return undefined;
+                    }
+                    stage = "rule_engine";
+                    const violation = detectDispatchGuardViolation(cleanedBody, config.protectedPaths);
+                    if (!violation.blocked) {
+                        bestEffort(() => {
+                            logDefenseFinish(logger, {
+                                hook: "before_agent_reply",
+                                mechanism: "dispatch_guard",
+                                sessionKey,
+                                result: "clear",
+                                durationMs: elapsedSince(now, startedAt),
+                            });
+                        });
+                        return undefined;
+                    }
+                    stage = "blocked_path";
+                    const durationMs = elapsedSince(now, startedAt);
+                    let reason = BLOCK_REASON_DISPATCH_GUARD;
+                    bestEffort(() => {
+                        reason = violation.reason || BLOCK_REASON_DISPATCH_GUARD;
+                    });
+                    bestEffort(() => {
+                        emitDefenseEvent({
+                            timestamp: now(),
+                            defense: "dispatch_guard",
+                            result: mode === "enforce" ? "blocked" : "observed",
+                            reason,
+                            details: {
+                                hook: "before_agent_reply",
+                                flags: violation.flags,
+                                mode,
+                            },
+                            userInput: cleanedBody,
+                        });
+                    });
+                    if (mode === "enforce") {
+                        bestEffort(() => {
+                            logger.warn("claw-aegis: before_agent_reply 已拦截危险操作请求", {
+                                event: "dispatch_guard_blocked",
+                                hook: "before_agent_reply",
+                                sessionKey,
+                                flags: violation.flags,
+                                durationMs,
+                            });
+                        });
+                        bestEffort(() => {
+                            logDefenseFinish(logger, {
+                                hook: "before_agent_reply",
+                                mechanism: "dispatch_guard",
+                                sessionKey,
+                                result: "blocked",
+                                durationMs,
+                            });
+                        });
+                        return {
+                            handled: true,
+                            reply: {
+                                text: `[ClawAegis] ${reason}\n\n所有破坏性操作必须通过标准 tool call 执行，不能绕过安全 hook。如确需执行，请联系管理员调整安全策略。`,
+                            },
+                            reason: "dispatch_guard",
+                        };
+                    }
+                    bestEffort(() => {
+                        logger.info("claw-aegis: before_agent_reply 已观测到危险操作请求（observe 模式）", {
+                            event: "dispatch_guard_observed",
+                            hook: "before_agent_reply",
+                            sessionKey,
+                            flags: violation.flags,
+                            durationMs,
+                        });
+                    });
+                    bestEffort(() => {
+                        logDefenseFinish(logger, {
+                            hook: "before_agent_reply",
+                            mechanism: "dispatch_guard",
+                            sessionKey,
+                            result: "observed",
+                            durationMs,
+                        });
+                    });
+                    return undefined;
                 }
-                logger.info("claw-aegis: before_agent_reply 已观测到危险操作请求（observe 模式）", {
-                    event: "dispatch_guard_observed",
-                    hook: "before_agent_reply",
-                    sessionKey,
-                    flags: violation.flags,
-                    durationMs,
-                });
-                logDefenseFinish(logger, {
-                    hook: "before_agent_reply",
-                    mechanism: "dispatch_guard",
-                    sessionKey,
-                    result: "observed",
-                    durationMs,
-                });
-                return undefined;
+                catch (error) {
+                    // Only the core check can land here; diagnostics are already isolated.
+                    return failCore(stage, error);
+                }
             },
             before_tool_call: (event, ctx) => {
                 const normalizedToolName = normalizeToolName(event.toolName);
